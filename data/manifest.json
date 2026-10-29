@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "packs": [
+    { "id": "core-beginner", "file": "snippets/beginner.json" },
+    { "id": "core-intermediate", "file": "snippets/intermediate.json" },
+    { "id": "core-advanced", "file": "snippets/advanced.json" }
+  ]
+}

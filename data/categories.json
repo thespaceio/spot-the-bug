@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "owaspEdition": "OWASP Top 10:2025",
+  "categories": [
+    {
+      "id": "sqli",
+      "name": "SQL Injection",
+      "owasp": "A05:2025 Injection",
+      "cwe": "CWE-89",
+      "summary": "User input is glued into a SQL string, so the input can change the query itself."
+    },
+    {
+      "id": "xss",
+      "name": "Cross-Site Scripting (XSS)",
+      "owasp": "A05:2025 Injection",
+      "cwe": "CWE-79",
+      "summary": "User input is written into a page without encoding, so a browser runs it as markup or script."
+    },
+    {
+      "id": "access-control",
+      "name": "Broken Access Control / IDOR",
+      "owasp": "A01:2025 Broken Access Control",
+      "cwe": "CWE-639",
+      "summary": "The server trusts an ID from the request and never checks the record belongs to the caller."
+    },
+    {
+      "id": "hardcoded-secret",
+      "name": "Hardcoded Secret",
+      "owasp": "A07:2025 Authentication Failures",
+      "cwe": "CWE-798",
+      "summary": "A key, token or password sits in source code, where everyone with repo access can read it."
+    },
+    {
+      "id": "weak-hashing",
+      "name": "Weak Password Hashing",
+      "owasp": "A04:2025 Cryptographic Failures",
+      "cwe": "CWE-916",
+      "summary": "Passwords are stored with a fast, unsalted hash that attackers can crack at huge speed."
+    },
+    {
+      "id": "path-traversal",
+      "name": "Path Traversal",
+      "owasp": "A01:2025 Broken Access Control",
+      "cwe": "CWE-22",
+      "summary": "A file path built from user input can climb out of the intended folder with ../ sequences."
+    },
+    {
+      "id": "ssrf",
+      "name": "Server-Side Request Forgery (SSRF)",
+      "owasp": "A01:2025 Broken Access Control",
+      "cwe": "CWE-918",
+      "summary": "The server fetches any URL a user supplies, including internal services and cloud metadata."
+    },
+    {
+      "id": "deserialization",
+      "name": "Insecure Deserialisation",
+      "owasp": "A08:2025 Software or Data Integrity Failures",
+      "cwe": "CWE-502",
+      "summary": "Untrusted bytes are turned back into live objects, which can run attacker-chosen code."
+    },
+    {
+      "id": "input-validation",
+      "name": "Missing Input Validation",
+      "owasp": "A06:2025 Insecure Design",
+      "cwe": "CWE-20",
+      "summary": "A value is used without checking its range, type or format, so business rules can be broken."
+    },
+    {
+      "id": "verbose-errors",
+      "name": "Verbose Error Messages",
+      "owasp": "A10:2025 Mishandling of Exceptional Conditions",
+      "cwe": "CWE-209",
+      "summary": "Errors return stack traces, queries or internals that map the system for an attacker."
+    }
+  ]
+}

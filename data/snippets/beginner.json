@@ -1,0 +1,740 @@
+{
+  "pack": "core-beginner",
+  "snippets": [
+    {
+      "id": "BEG-001",
+      "difficulty": "beginner",
+      "language": "javascript",
+      "framework": "Express",
+      "title": "Wallet transaction search",
+      "context": "A Lagos mobile money app lets customers search their own transaction history by narration, for example \"airtime\" or \"POS withdrawal\".",
+      "category": "sqli",
+      "code": [
+        "const express = require('express');",
+        "const db = require('./db');",
+        "const { requireAuth } = require('./auth');",
+        "",
+        "const router = express.Router();",
+        "",
+        "// GET /api/transactions?narration=airtime",
+        "router.get('/api/transactions', requireAuth, async (req, res) => {",
+        "  const narration = String(req.query.narration || '');",
+        "  const sql = 'SELECT id, amount_kobo, narration, created_at FROM transactions ' +",
+        "    \"WHERE user_id = $1 AND narration ILIKE '%\" + narration + \"%' \" +",
+        "    'ORDER BY created_at DESC LIMIT 50';",
+        "  const result = await db.query(sql, [req.user.id]);",
+        "  res.json(result.rows);",
+        "});",
+        "",
+        "module.exports = router;"
+      ],
+      "vulnerableLine": 11,
+      "acceptLines": [
+        10
+      ],
+      "distractors": [
+        "xss",
+        "input-validation",
+        "verbose-errors"
+      ],
+      "explanation": "The narration search term is pasted straight into the SQL text. A search for  x' OR 1=1 --  closes the quote, adds a condition that is always true and comments out the rest, so one customer can read every customer's transactions. The user_id on the same query is passed safely as $1; the narration is not.",
+      "fix": {
+        "summary": "Send the search term as a bound parameter ($2) and put the % wildcards in the value, never in the SQL string.",
+        "code": [
+          "const express = require('express');",
+          "const db = require('./db');",
+          "const { requireAuth } = require('./auth');",
+          "",
+          "const router = express.Router();",
+          "",
+          "// GET /api/transactions?narration=airtime",
+          "router.get('/api/transactions', requireAuth, async (req, res) => {",
+          "  const narration = String(req.query.narration || '');",
+          "  const sql = 'SELECT id, amount_kobo, narration, created_at FROM transactions ' +",
+          "    'WHERE user_id = $1 AND narration ILIKE $2 ' +",
+          "    'ORDER BY created_at DESC LIMIT 50';",
+          "  const result = await db.query(sql, [req.user.id, '%' + narration + '%']);",
+          "  res.json(result.rows);",
+          "});",
+          "",
+          "module.exports = router;"
+        ],
+        "changedLines": [
+          11,
+          13
+        ]
+      },
+      "tags": [
+        "fintech"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-002",
+      "difficulty": "beginner",
+      "language": "php",
+      "framework": "PHP",
+      "title": "Results portal session filter",
+      "context": "A university results portal. Signed-in students choose an academic session to see their grades for that year.",
+      "category": "xss",
+      "code": [
+        "<?php",
+        "require 'config.php';",
+        "require 'session_guard.php'; // sets $studentId from the login session",
+        "",
+        "$session = $_GET['session'] ?? '2025/2026';",
+        "$stmt = $pdo->prepare(",
+        "    'SELECT course_code, grade FROM results WHERE student_id = ? AND session = ?'",
+        ");",
+        "$stmt->execute([$studentId, $session]);",
+        "$rows = $stmt->fetchAll();",
+        "?>",
+        "<h2>Your results for the <?= $session ?> session</h2>",
+        "<table>",
+        "<?php foreach ($rows as $row): ?>",
+        "  <tr>",
+        "    <td><?= htmlspecialchars($row['course_code'], ENT_QUOTES, 'UTF-8') ?></td>",
+        "    <td><?= htmlspecialchars($row['grade'], ENT_QUOTES, 'UTF-8') ?></td>",
+        "  </tr>",
+        "<?php endforeach; ?>",
+        "</table>"
+      ],
+      "vulnerableLine": 12,
+      "acceptLines": [],
+      "distractors": [
+        "sqli",
+        "access-control",
+        "input-validation"
+      ],
+      "explanation": "The session value from the URL is printed into the page with no encoding. A link like ?session=<script>...</script> shared in a class WhatsApp group runs script in every student's browser on the portal's own domain, where it can read their page, change what they see or send their session away. The table cells are escaped correctly; the heading is the one place that was missed.",
+      "fix": {
+        "summary": "Encode every value on output with htmlspecialchars, and reject session values that don't match the YYYY/YYYY format.",
+        "code": [
+          "<?php",
+          "require 'config.php';",
+          "require 'session_guard.php'; // sets $studentId from the login session",
+          "",
+          "$session = $_GET['session'] ?? '2025/2026';",
+          "if (!preg_match('/^\\d{4}\\/\\d{4}$/', $session)) {",
+          "    $session = '2025/2026';",
+          "}",
+          "$stmt = $pdo->prepare(",
+          "    'SELECT course_code, grade FROM results WHERE student_id = ? AND session = ?'",
+          ");",
+          "$stmt->execute([$studentId, $session]);",
+          "$rows = $stmt->fetchAll();",
+          "?>",
+          "<h2>Your results for the <?= htmlspecialchars($session, ENT_QUOTES, 'UTF-8') ?> session</h2>",
+          "<table>",
+          "<?php foreach ($rows as $row): ?>",
+          "  <tr>",
+          "    <td><?= htmlspecialchars($row['course_code'], ENT_QUOTES, 'UTF-8') ?></td>",
+          "    <td><?= htmlspecialchars($row['grade'], ENT_QUOTES, 'UTF-8') ?></td>",
+          "  </tr>",
+          "<?php endforeach; ?>",
+          "</table>"
+        ],
+        "changedLines": [
+          6,
+          7,
+          8,
+          15
+        ]
+      },
+      "tags": [
+        "education"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-003",
+      "difficulty": "beginner",
+      "language": "python",
+      "framework": "Flask",
+      "title": "POS agent settlements",
+      "context": "An API for a POS agent network. Agents open the app to check the daily settlements paid into their bank account.",
+      "category": "access-control",
+      "code": [
+        "from flask import Flask, jsonify, g",
+        "from auth import login_required  # sets g.agent for the signed-in agent",
+        "from models import Settlement",
+        "",
+        "app = Flask(__name__)",
+        "",
+        "",
+        "@app.get(\"/api/agents/<int:agent_id>/settlements\")",
+        "@login_required",
+        "def list_settlements(agent_id):",
+        "    rows = (Settlement.query",
+        "            .filter_by(agent_id=agent_id)",
+        "            .order_by(Settlement.settled_at.desc())",
+        "            .limit(30)",
+        "            .all())",
+        "    return jsonify([row.to_dict() for row in rows])"
+      ],
+      "vulnerableLine": 12,
+      "acceptLines": [
+        11
+      ],
+      "distractors": [
+        "sqli",
+        "path-traversal",
+        "verbose-errors"
+      ],
+      "explanation": "The query trusts the agent_id in the URL. Any signed-in agent can change /agents/1042/settlements to /agents/1043/settlements and read another agent's payouts and bank details. Logging in proves who you are; it doesn't prove which records you may see. This pattern is called IDOR, an insecure direct object reference.",
+      "fix": {
+        "summary": "Compare the requested ID with the signed-in agent (or drop the ID from the URL and use g.agent.id), and return 404 so other agents' IDs aren't confirmed.",
+        "code": [
+          "from flask import Flask, jsonify, g, abort",
+          "from auth import login_required  # sets g.agent for the signed-in agent",
+          "from models import Settlement",
+          "",
+          "app = Flask(__name__)",
+          "",
+          "",
+          "@app.get(\"/api/agents/<int:agent_id>/settlements\")",
+          "@login_required",
+          "def list_settlements(agent_id):",
+          "    if agent_id != g.agent.id:",
+          "        abort(404)",
+          "    rows = (Settlement.query",
+          "            .filter_by(agent_id=g.agent.id)",
+          "            .order_by(Settlement.settled_at.desc())",
+          "            .limit(30)",
+          "            .all())",
+          "    return jsonify([row.to_dict() for row in rows])"
+        ],
+        "changedLines": [
+          1,
+          11,
+          12,
+          14
+        ]
+      },
+      "tags": [
+        "pos",
+        "fintech"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-004",
+      "difficulty": "beginner",
+      "language": "javascript",
+      "framework": "Node.js",
+      "title": "Card payment verification",
+      "context": "Before a fintech app credits a customer's wallet, it asks the payment gateway to confirm the card payment really happened.",
+      "category": "hardcoded-secret",
+      "code": [
+        "const axios = require('axios');",
+        "",
+        "const GATEWAY_URL = 'https://api.paygate.example.ng/v1';",
+        "const GATEWAY_SECRET = 'pg_live_9Kx2mQ7vLr4Tz8Wb1Nc6Hd3Ya5';",
+        "",
+        "// Confirm a card payment before we credit the customer's wallet.",
+        "async function verifyPayment(reference, expectedKobo) {",
+        "  const url = `${GATEWAY_URL}/transactions/verify/${encodeURIComponent(reference)}`;",
+        "  const res = await axios.get(url, {",
+        "    headers: { Authorization: `Bearer ${GATEWAY_SECRET}` },",
+        "    timeout: 5000,",
+        "  });",
+        "  const tx = res.data.data;",
+        "  return tx.status === 'success' && tx.amount === expectedKobo && tx.currency === 'NGN';",
+        "}",
+        "",
+        "module.exports = { verifyPayment };"
+      ],
+      "vulnerableLine": 4,
+      "acceptLines": [],
+      "distractors": [
+        "weak-hashing",
+        "ssrf",
+        "verbose-errors"
+      ],
+      "explanation": "A live payment gateway secret is written into the source file. Everyone with repo access, every laptop that clones it and every old commit now holds a key that can act as your business on the gateway: list customers, query transactions or start refunds. Deleting the line later doesn't remove it from git history, so a leaked key must be rotated.",
+      "fix": {
+        "summary": "Load the secret from the environment or a secrets manager, fail fast when it's missing, and rotate any key that was ever committed.",
+        "code": [
+          "const axios = require('axios');",
+          "",
+          "const GATEWAY_URL = 'https://api.paygate.example.ng/v1';",
+          "const GATEWAY_SECRET = process.env.GATEWAY_SECRET;",
+          "if (!GATEWAY_SECRET) throw new Error('GATEWAY_SECRET is not set');",
+          "",
+          "// Confirm a card payment before we credit the customer's wallet.",
+          "async function verifyPayment(reference, expectedKobo) {",
+          "  const url = `${GATEWAY_URL}/transactions/verify/${encodeURIComponent(reference)}`;",
+          "  const res = await axios.get(url, {",
+          "    headers: { Authorization: `Bearer ${GATEWAY_SECRET}` },",
+          "    timeout: 5000,",
+          "  });",
+          "  const tx = res.data.data;",
+          "  return tx.status === 'success' && tx.amount === expectedKobo && tx.currency === 'NGN';",
+          "}",
+          "",
+          "module.exports = { verifyPayment };"
+        ],
+        "changedLines": [
+          4,
+          5
+        ]
+      },
+      "tags": [
+        "fintech",
+        "payments"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-005",
+      "difficulty": "beginner",
+      "language": "python",
+      "framework": "Flask",
+      "title": "Portal password helper",
+      "context": "The password module shared by a school results portal's login and password reset routes.",
+      "category": "weak-hashing",
+      "code": [
+        "import hashlib",
+        "import hmac",
+        "",
+        "",
+        "# Used by the results portal login and the password reset flow.",
+        "def hash_password(password: str) -> str:",
+        "    return hashlib.md5(password.encode(\"utf-8\")).hexdigest()",
+        "",
+        "",
+        "def verify_password(password: str, stored_hash: str) -> bool:",
+        "    candidate = hash_password(password)",
+        "    return hmac.compare_digest(candidate, stored_hash)"
+      ],
+      "vulnerableLine": 7,
+      "acceptLines": [],
+      "distractors": [
+        "hardcoded-secret",
+        "deserialization",
+        "input-validation"
+      ],
+      "explanation": "Passwords are stored as plain MD5. MD5 was designed to be fast and has no salt, so if the database leaks, one GPU can test billions of guesses a second, and two students with the same password get the same hash. The constant-time comparison at the bottom is good practice, but it can't make a weak hash strong.",
+      "fix": {
+        "summary": "Use a slow, salted password hashing function (scrypt, bcrypt or Argon2). Werkzeug, which ships with Flask, provides one.",
+        "code": [
+          "from werkzeug.security import generate_password_hash, check_password_hash",
+          "",
+          "",
+          "# Used by the results portal login and the password reset flow.",
+          "def hash_password(password: str) -> str:",
+          "    return generate_password_hash(password)  # salted, slow, per-user hash",
+          "",
+          "",
+          "def verify_password(password: str, stored_hash: str) -> bool:",
+          "    return check_password_hash(stored_hash, password)"
+        ],
+        "changedLines": [
+          1,
+          6,
+          10
+        ]
+      },
+      "tags": [
+        "education",
+        "auth"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-006",
+      "difficulty": "beginner",
+      "language": "php",
+      "framework": "PHP",
+      "title": "School fees receipt download",
+      "context": "Students download PDF receipts for school fees they've paid. Each student has their own receipts folder on the server.",
+      "category": "path-traversal",
+      "code": [
+        "<?php",
+        "require 'session_guard.php'; // sets $studentId from the login session",
+        "",
+        "// Each student has their own folder of school fees receipts.",
+        "$root = __DIR__ . '/storage/receipts/' . $studentId . '/';",
+        "$file = $_GET['file'] ?? '';",
+        "$path = $root . $file;",
+        "",
+        "if (!is_file($path)) {",
+        "    http_response_code(404);",
+        "    exit('Receipt not found');",
+        "}",
+        "",
+        "header('Content-Type: application/pdf');",
+        "header('Content-Disposition: attachment; filename=\"receipt.pdf\"');",
+        "readfile($path);"
+      ],
+      "vulnerableLine": 7,
+      "acceptLines": [
+        6
+      ],
+      "distractors": [
+        "sqli",
+        "ssrf",
+        "verbose-errors"
+      ],
+      "explanation": "The filename from the URL is joined onto the student's folder as is. A request for ?file=../../../config.php climbs out of the receipts folder and downloads the portal's config file, database password included, or another student's receipts. The folder is per student, but nothing stops the path from leaving it.",
+      "fix": {
+        "summary": "Strip directories with basename(), resolve the real path, and confirm it still sits inside the student's folder before reading it.",
+        "code": [
+          "<?php",
+          "require 'session_guard.php'; // sets $studentId from the login session",
+          "",
+          "// Each student has their own folder of school fees receipts.",
+          "$root = realpath(__DIR__ . '/storage/receipts/' . $studentId);",
+          "$file = basename($_GET['file'] ?? '');",
+          "$path = realpath($root . DIRECTORY_SEPARATOR . $file);",
+          "",
+          "if ($root === false || $path === false",
+          "    || !str_starts_with($path, $root . DIRECTORY_SEPARATOR) || !is_file($path)) {",
+          "    http_response_code(404);",
+          "    exit('Receipt not found');",
+          "}",
+          "",
+          "header('Content-Type: application/pdf');",
+          "header('Content-Disposition: attachment; filename=\"receipt.pdf\"');",
+          "readfile($path);"
+        ],
+        "changedLines": [
+          5,
+          6,
+          7,
+          9,
+          10
+        ]
+      },
+      "tags": [
+        "education"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-007",
+      "difficulty": "beginner",
+      "language": "javascript",
+      "framework": "Express",
+      "title": "Merchant logo from a link",
+      "context": "Merchants on a payments dashboard paste a link to their shop logo. The server downloads the image and keeps a copy.",
+      "category": "ssrf",
+      "code": [
+        "const express = require('express');",
+        "const fetch = require('node-fetch');",
+        "const { requireAuth } = require('./auth');",
+        "const { saveLogo } = require('./storage');",
+        "",
+        "const router = express.Router();",
+        "",
+        "// Merchants paste a link to their shop logo; we download and keep a copy.",
+        "router.post('/api/merchant/logo', requireAuth, async (req, res) => {",
+        "  const { logoUrl } = req.body;",
+        "  const upstream = await fetch(logoUrl, { timeout: 5000 });",
+        "  if (!upstream.ok) return res.status(400).json({ error: 'Could not fetch logo' });",
+        "  const image = await upstream.buffer();",
+        "  await saveLogo(req.user.merchantId, image);",
+        "  res.json({ status: 'saved' });",
+        "});",
+        "",
+        "module.exports = router;"
+      ],
+      "vulnerableLine": 11,
+      "acceptLines": [],
+      "distractors": [
+        "path-traversal",
+        "xss",
+        "hardcoded-secret"
+      ],
+      "explanation": "The server fetches whatever URL the merchant sends. Point it at http://169.254.169.254/ (the cloud metadata service) or http://10.0.0.5:8080/admin and the request comes from inside your network, where firewalls trust it. The response is then saved as a \"logo\" the attacker can download.",
+      "fix": {
+        "summary": "Allow only https, resolve the hostname and refuse private or internal addresses, block redirects and cap the size. In production, pin the resolved IP or send outbound calls through an egress proxy.",
+        "code": [
+          "const express = require('express');",
+          "const dns = require('dns').promises;",
+          "const fetch = require('node-fetch');",
+          "const { requireAuth } = require('./auth');",
+          "const { saveLogo } = require('./storage');",
+          "const { isPublicAddress } = require('./net-guard');",
+          "",
+          "const router = express.Router();",
+          "",
+          "// Merchants paste a link to their shop logo; we download and keep a copy.",
+          "router.post('/api/merchant/logo', requireAuth, async (req, res) => {",
+          "  const url = new URL(String(req.body.logoUrl || ''));",
+          "  const { address } = await dns.lookup(url.hostname);",
+          "  if (url.protocol !== 'https:' || !isPublicAddress(address)) {",
+          "    return res.status(400).json({ error: 'Use a public https link' });",
+          "  }",
+          "  const upstream = await fetch(url, { timeout: 5000, redirect: 'error', size: 2e6 });",
+          "  if (!upstream.ok) return res.status(400).json({ error: 'Could not fetch logo' });",
+          "  const image = await upstream.buffer();",
+          "  await saveLogo(req.user.merchantId, image);",
+          "  res.json({ status: 'saved' });",
+          "});",
+          "",
+          "module.exports = router;"
+        ],
+        "changedLines": [
+          2,
+          6,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ]
+      },
+      "tags": [
+        "fintech",
+        "merchants"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-008",
+      "difficulty": "beginner",
+      "language": "python",
+      "framework": "Flask",
+      "title": "POS terminal preferences cookie",
+      "context": "A POS terminal's companion app remembers the agent's language and receipt choice in a cookie.",
+      "category": "deserialization",
+      "code": [
+        "import base64",
+        "import pickle",
+        "from flask import Flask, request, jsonify",
+        "",
+        "app = Flask(__name__)",
+        "",
+        "",
+        "@app.get(\"/api/terminal/preferences\")",
+        "def get_preferences():",
+        "    raw = request.cookies.get(\"prefs\")",
+        "    if not raw:",
+        "        return jsonify(language=\"en\", receipt=\"sms\")",
+        "    prefs = pickle.loads(base64.b64decode(raw))",
+        "    return jsonify(language=prefs.get(\"language\", \"en\"),",
+        "                   receipt=prefs.get(\"receipt\", \"sms\"))"
+      ],
+      "vulnerableLine": 13,
+      "acceptLines": [],
+      "distractors": [
+        "xss",
+        "sqli",
+        "hardcoded-secret"
+      ],
+      "explanation": "The server unpickles a cookie that the client fully controls. pickle can rebuild any Python object, including one whose __reduce__ method runs a shell command, so a single crafted cookie gives an attacker code execution on the server. Base64 is only encoding; it hides nothing and checks nothing.",
+      "fix": {
+        "summary": "Store plain data as JSON (or a signed session) and check the shape of what comes back. Never unpickle data from outside your trust boundary.",
+        "code": [
+          "import base64",
+          "import json",
+          "from flask import Flask, request, jsonify",
+          "",
+          "app = Flask(__name__)",
+          "",
+          "",
+          "@app.get(\"/api/terminal/preferences\")",
+          "def get_preferences():",
+          "    raw = request.cookies.get(\"prefs\")",
+          "    if not raw:",
+          "        return jsonify(language=\"en\", receipt=\"sms\")",
+          "    try:",
+          "        prefs = json.loads(base64.b64decode(raw))",
+          "    except (ValueError, TypeError):",
+          "        prefs = {}",
+          "    if not isinstance(prefs, dict):",
+          "        prefs = {}",
+          "    return jsonify(language=prefs.get(\"language\", \"en\"),",
+          "                   receipt=prefs.get(\"receipt\", \"sms\"))"
+        ],
+        "changedLines": [
+          2,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18
+        ]
+      },
+      "tags": [
+        "pos"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-009",
+      "difficulty": "beginner",
+      "language": "php",
+      "framework": "PHP",
+      "title": "Wallet to wallet transfer",
+      "context": "The transfer endpoint of a Nigerian fintech app. Amounts are sent in kobo (100 kobo = ₦1).",
+      "category": "input-validation",
+      "code": [
+        "<?php",
+        "require 'db.php';            // $pdo",
+        "require 'session_guard.php'; // sets $userId",
+        "require 'wallet.php';        // lockWallet(), moveFunds()",
+        "",
+        "$data = json_decode(file_get_contents('php://input'), true) ?? [];",
+        "$toAccount = preg_replace('/\\D/', '', $data['to_account'] ?? '');",
+        "$amountKobo = (int) ($data['amount_kobo'] ?? 0);",
+        "",
+        "$pdo->beginTransaction();",
+        "$wallet = lockWallet($pdo, $userId); // SELECT ... FOR UPDATE",
+        "",
+        "if ($amountKobo > $wallet['balance_kobo']) {",
+        "    $pdo->rollBack();",
+        "    http_response_code(400);",
+        "    exit(json_encode(['error' => 'Insufficient funds']));",
+        "}",
+        "",
+        "moveFunds($pdo, $wallet['account_no'], $toAccount, $amountKobo);",
+        "$pdo->commit();",
+        "echo json_encode(['status' => 'sent', 'amount_kobo' => $amountKobo]);"
+      ],
+      "vulnerableLine": 8,
+      "acceptLines": [
+        13
+      ],
+      "distractors": [
+        "sqli",
+        "access-control",
+        "verbose-errors"
+      ],
+      "explanation": "The amount is cast to an integer and used without any range check. A transfer of -500000 kobo sails past the \"insufficient funds\" test, because a negative number is always smaller than the balance, and moveFunds then debits the sender by a negative amount: ₦5,000 moves out of the recipient's wallet into the attacker's. The balance check looks like validation but only guards one direction.",
+      "fix": {
+        "summary": "Validate on the server before any money moves: a whole number of kobo within your minimum and maximum transfer limits, and a 10 digit NUBAN account number.",
+        "code": [
+          "<?php",
+          "require 'db.php';            // $pdo",
+          "require 'session_guard.php'; // sets $userId",
+          "require 'wallet.php';        // lockWallet(), moveFunds()",
+          "",
+          "$data = json_decode(file_get_contents('php://input'), true) ?? [];",
+          "$toAccount = (string) ($data['to_account'] ?? '');",
+          "$amountKobo = filter_var($data['amount_kobo'] ?? null, FILTER_VALIDATE_INT,",
+          "    ['options' => ['min_range' => 100, 'max_range' => 50000000]]);",
+          "if ($amountKobo === false || !preg_match('/^\\d{10}$/', $toAccount)) {",
+          "    http_response_code(422);",
+          "    exit(json_encode(['error' => 'Enter a valid amount and a 10 digit account number']));",
+          "}",
+          "",
+          "$pdo->beginTransaction();",
+          "$wallet = lockWallet($pdo, $userId); // SELECT ... FOR UPDATE",
+          "",
+          "if ($amountKobo > $wallet['balance_kobo']) {",
+          "    $pdo->rollBack();",
+          "    http_response_code(400);",
+          "    exit(json_encode(['error' => 'Insufficient funds']));",
+          "}",
+          "",
+          "moveFunds($pdo, $wallet['account_no'], $toAccount, $amountKobo);",
+          "$pdo->commit();",
+          "echo json_encode(['status' => 'sent', 'amount_kobo' => $amountKobo]);"
+        ],
+        "changedLines": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13
+        ]
+      },
+      "tags": [
+        "fintech",
+        "transfers"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    },
+    {
+      "id": "BEG-010",
+      "difficulty": "beginner",
+      "language": "javascript",
+      "framework": "Express",
+      "title": "API error handler",
+      "context": "The POS agent API's last middleware. It catches any error a route throws and answers the client.",
+      "category": "verbose-errors",
+      "code": [
+        "const express = require('express');",
+        "const agentsRouter = require('./routes/agents');",
+        "const logger = require('./logger');",
+        "",
+        "const app = express();",
+        "app.use(express.json({ limit: '100kb' }));",
+        "app.use('/api/agents', agentsRouter);",
+        "",
+        "app.use((err, req, res, next) => {",
+        "  logger.error({ err, path: req.path }, 'request failed');",
+        "  res.status(500).json({",
+        "    error: err.message,",
+        "    stack: err.stack,",
+        "    query: err.sql,",
+        "  });",
+        "});",
+        "",
+        "app.listen(process.env.PORT || 3000);"
+      ],
+      "vulnerableLine": 13,
+      "acceptLines": [
+        12,
+        14
+      ],
+      "distractors": [
+        "input-validation",
+        "ssrf",
+        "hardcoded-secret"
+      ],
+      "explanation": "The error handler returns the raw error to whoever caused it: the message, the full stack trace with file paths and library versions, and the SQL that failed. Anyone can trigger an error with a malformed request and get a map of your code, tables and query shapes, which makes every other attack easier to aim. Logging the detail is right; sending it to the client is the bug.",
+      "fix": {
+        "summary": "Log the full error server side with a reference ID, and send the client a generic message plus that ID so support can find the log line.",
+        "code": [
+          "const crypto = require('crypto');",
+          "const express = require('express');",
+          "const agentsRouter = require('./routes/agents');",
+          "const logger = require('./logger');",
+          "",
+          "const app = express();",
+          "app.use(express.json({ limit: '100kb' }));",
+          "app.use('/api/agents', agentsRouter);",
+          "",
+          "app.use((err, req, res, next) => {",
+          "  const ref = crypto.randomUUID();",
+          "  logger.error({ err, ref, path: req.path }, 'request failed');",
+          "  res.status(500).json({",
+          "    error: 'Something went wrong. Quote this reference if you contact support.',",
+          "    ref,",
+          "  });",
+          "});",
+          "",
+          "app.listen(process.env.PORT || 3000);"
+        ],
+        "changedLines": [
+          1,
+          11,
+          12,
+          14,
+          15
+        ]
+      },
+      "tags": [
+        "pos"
+      ],
+      "author": "Th3 SpaceIO",
+      "version": 1
+    }
+  ]
+}

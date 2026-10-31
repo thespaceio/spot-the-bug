@@ -6,13 +6,14 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 **LEARN. BUILD. SECURE.**
 
-Planned address: `https://thespaceio.github.io/spot-the-bug/`
+Live at **https://thespaceio.github.io/spot-the-bug/**
 
-## What's in v0.1.0
+## What's in v0.2.0
 
-- Three levels: Beginner, Intermediate, Advanced. A level opens automatically as soon as its pack has snippets.
+- Three levels: Beginner and Intermediate are open; Advanced opens automatically as soon as its pack has snippets.
 - 10 timed rounds per game, score, streaks and a per round breakdown
-- 10 original Beginner snippets in JavaScript (Express), Python (Flask) and PHP, one for each vulnerability type
+- 20 original snippets in JavaScript (Express), Python (Flask) and PHP: 10 Beginner and 10 Intermediate, each level covering all 10 vulnerability types once
+- Intermediate snippets include a partial defence (an allowlist, a filter, a role check, an env variable) that looks safe but misses the real flaw
 - Explanation, fix summary and vulnerable vs fixed code after every round
 - Results screen with focus areas (the flaw types you missed) and a round by round review
 - Local scoreboard, top 10 per level, saved in the browser
@@ -37,9 +38,7 @@ npm test        # validates every snippet, then runs the engine tests
 
 ## Deploy to GitHub Pages
 
-1. Create the repo `thespaceio/spot-the-bug` and push this folder to `main`.
-2. In the repo, open **Settings → Pages**, set **Source** to *Deploy from a branch*, branch `main`, folder `/ (root)`.
-3. The site appears at `https://thespaceio.github.io/spot-the-bug/` after a minute or two.
+GitHub Pages publishes the `main` branch from the root folder (Settings → Pages → Deploy from a branch). Every push to `main` redeploys the site within a minute or two.
 
 The `Validate snippets` workflow runs `npm test` on every push and pull request, so a broken snippet shows up as a red check before anyone plays it.
 

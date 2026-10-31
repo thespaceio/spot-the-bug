@@ -8,12 +8,13 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
-## What's in v0.2.0
+## What's in v0.3.0
 
-- Three levels: Beginner and Intermediate are open; Advanced opens automatically as soon as its pack has snippets.
+- Three levels, all open: Beginner, Intermediate and Advanced
 - 10 timed rounds per game, score, streaks and a per round breakdown
-- 20 original snippets in JavaScript (Express), Python (Flask) and PHP: 10 Beginner and 10 Intermediate, each level covering all 10 vulnerability types once
+- 30 original snippets in JavaScript (Node/Express), Python (Flask) and PHP: 10 per level, each level covering all 10 vulnerability types once
 - Intermediate snippets include a partial defence (an allowlist, a filter, a role check, an env variable) that looks safe but misses the real flaw
+- Advanced snippets hide the flaw in code that looks finished: second order SQL injection, `javascript:` links that survive escaping, zip slip, a `startswith` URL check, `yaml.Loader`, a cumulative refund rule and a debug header
 - Explanation, fix summary and vulnerable vs fixed code after every round
 - Results screen with focus areas (the flaw types you missed) and a round by round review
 - Local scoreboard, top 10 per level, saved in the browser

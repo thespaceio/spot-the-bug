@@ -358,3 +358,12 @@ button { font: inherit; color: inherit; }
 .gamenight-closed .btn { margin-top: 6px; }
 @media (max-width: 560px) { .gamenight-closed .btn { width: 100%; } }
 
+/* ---------- Online scoreboard and team links ---------- */
+.notice { border: 1px solid var(--border-strong); border-left: 3px solid var(--gray); background: var(--surface); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px; }
+.notice p { color: var(--gray); font-size: 14px; }
+.notice .notice-title { color: var(--white); font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.board-note { font-size: 13px; color: var(--gray); border-left: 2px solid var(--border-strong); padding: 4px 10px; margin: 4px 0 10px; }
+.save-hint { font-size: 12.5px; color: var(--gray-dim); margin-top: 8px; }
+.save-msg.is-pending { color: var(--gray); }
+.save-msg.is-warning { color: var(--white); }
+.board-table .num { white-space: nowrap; }

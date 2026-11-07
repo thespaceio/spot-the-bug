@@ -78,16 +78,20 @@ export function scoreRound({ snippet, pickedLine, pickedType, secondsLeft, total
   const clean = lineCorrect && typeCorrect;
   const newStreak = clean ? streak + 1 : 0;
 
-  const fraction = totalSeconds > 0 ? Math.max(0, Math.min(1, secondsLeft / totalSeconds)) : 0;
+  // Time left is counted in whole tenths of a second, and the speed bonus is
+  // worked out from whole numbers, so the online scoreboard (which re-scores
+  // every game in SQL) always reaches exactly the same total.
+  const maxTenths = Math.max(0, Math.round(totalSeconds * 10));
+  const tenthsLeft = Math.max(0, Math.min(maxTenths, Math.round((Number(secondsLeft) || 0) * 10)));
   const breakdown = {
     line: lineCorrect ? SCORING.line : 0,
     type: typeCorrect ? SCORING.type : 0,
-    speed: clean ? Math.round(SCORING.speedMax * fraction) : 0,
+    speed: clean && maxTenths ? Math.round((SCORING.speedMax * tenthsLeft) / maxTenths) : 0,
     streak: clean ? Math.min(SCORING.streakCap, SCORING.streakStep * (newStreak - 1)) : 0,
   };
   const raw = breakdown.line + breakdown.type + breakdown.speed + breakdown.streak;
   const points = Math.round(raw * multiplier);
-  return { lineCorrect, typeCorrect, clean, newStreak, breakdown, multiplier, points };
+  return { lineCorrect, typeCorrect, clean, newStreak, breakdown, multiplier, points, tenthsLeft };
 }
 
 export function summarise(results, categories) {

@@ -66,4 +66,31 @@ const sum = summarise(results, categories);
 assert.equal(sum.clean, 1);
 assert.equal(sum.focus[0].category.id, s.category);
 
+// Same game the database test posted to arcade_submit_spot_the_bug, which the
+// server scored at 1184. The browser must reach the same total.
+const byId = new Map(pack.snippets.map((x) => [x.id, x]));
+const played = [
+  ['BEG-001', 11, 'sqli', 300], ['BEG-002', 12, 'sqli', 600], ['BEG-003', 1, 'access-control', 600],
+  ['BEG-004', null, 'hardcoded-secret', 600], ['BEG-005', 7, 'weak-hashing', 450],
+  ['BEG-006', 7, 'path-traversal', 600], ['BEG-007', null, 'ssrf', 600], ['BEG-008', null, null, 0],
+  ['BEG-009', 8, 'input-validation', 10], ['BEG-010', 13, 'verbose-errors', 599],
+];
+let streak = 0;
+let total = 0;
+for (const [id, line, type, tenths] of played) {
+  const r = scoreRound({ snippet: byId.get(id), pickedLine: line, pickedType: type, secondsLeft: tenths / 10,
+    totalSeconds: LEVELS.beginner.seconds, streak, multiplier: LEVELS.beginner.multiplier });
+  assert.equal(r.tenthsLeft, tenths);
+  streak = r.newStreak;
+  total += r.points;
+}
+assert.equal(total, 1184, 'browser and server totals must match');
+
+// Halfway rounding: 27.0s of 60s is exactly 22.5 speed points, which both sides round up to 23.
+r = scoreRound({ ...base, pickedLine: s.vulnerableLine, pickedType: s.category, secondsLeft: 27, streak: 0 });
+assert.equal(r.breakdown.speed, 23);
+// Float noise in the timer doesn't change the result.
+r = scoreRound({ ...base, pickedLine: s.vulnerableLine, pickedType: s.category, secondsLeft: 26.99999, streak: 0 });
+assert.equal(r.tenthsLeft, 270);
+
 console.log('Engine tests passed.');

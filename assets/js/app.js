@@ -2,7 +2,7 @@
 import { APP, LEVELS, ROUNDS_PER_GAME, SCORING } from './config.js';
 import { loadContent, countByLevel, buildGame, scoreRound, summarise } from './engine.js';
 import { highlightLine, LANGUAGE_LABEL } from './highlight.js';
-import { createScoreStore, readTeam } from './storage.js';
+import { OnlineBoard, LocalScoreStore, readTeam, cleanName } from './storage.js';
 import { isGameNight, nextGameNightLabel, GAME_NIGHT_URL } from './gamenight.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -26,10 +26,17 @@ function h(tag, props, ...children) {
   return el;
 }
 
-const team = readTeam();
-const store = createScoreStore({ team });
-// Public games open on Fridays (Game Night). Team boards are for training and stay open.
-const isOpen = () => Boolean(team) || isGameNight();
+const team = readTeam();                 // { slug, key } from a team link, or null
+const online = new OnlineBoard({ team });
+const local = new LocalScoreStore({ team });
+const teamStatus = { info: null, error: null };   // filled in at boot
+
+// Online posting is allowed on the public board, or on a team board whose link checked out.
+const canUseOnline = () => online.enabled && (!team || Boolean(teamStatus.info));
+const boardName = () => (teamStatus.info ? `${teamStatus.info.name} team board` : 'online scoreboard');
+// Public games open on Fridays (Game Night). Licensed teams train any day, but only
+// with a team link that checked out, so a made-up ?team= can't open public play.
+const isOpen = () => Boolean(teamStatus.info) || isGameNight();
 
 const state = {
   content: null,
@@ -37,6 +44,7 @@ const state = {
   rounds: [],
   i: 0,
   results: [],
+  answers: [],
   score: 0,
   streak: 0,
   pickedLine: null,
@@ -103,6 +111,9 @@ function renderHome() {
   ];
 
   screens.home.replaceChildren(
+    teamStatus.error ? h('div', { class: 'notice', role: 'status' },
+      h('p', { class: 'notice-title', text: "This team link didn't work" }),
+      h('p', { text: `${teamStatus.error} You can still play; scores will be saved on this device only.` })) : null,
     h('div', { class: 'hero' },
       h('p', { class: 'eyebrow', text: 'SPACEIO // SECURE CODE' }),
       h('h1', { id: 'home-title', text: 'Find the vulnerable line before the clock does.' }),
@@ -149,33 +160,59 @@ function renderBoardSection() {
       text: lvl.label,
     }));
   }
+  const title = teamStatus.info ? `Team board · ${teamStatus.info.name}` : team ? 'Scoreboard' : 'Online scoreboard';
+  const subtitle = teamStatus.info
+    ? 'Private to your team. Best score per player.'
+    : team ? 'Saved on this device.' : "Everyone's best score at each level.";
   section.append(
     h('div', { class: 'board-head' },
-      h('h2', { id: 'board-title', text: team ? `Scoreboard · ${team}` : 'Scoreboard' }),
-      h('p', { class: 'muted', text: team ? 'Private team board, saved in this browser.' : 'Saved in this browser. A shared online board is on the way.' })),
+      h('h2', { id: 'board-title', text: title }),
+      h('p', { class: 'muted', text: subtitle })),
     tabs, body);
   fillBoard(body, state.boardLevel);
   return section;
 }
 
-async function fillBoard(container, levelId, highlightRank = null) {
-  const rows = await store.list(levelId);
+let boardRequest = 0;
+
+// Shows the online board, or this device's scores when the online board can't be used.
+async function fillBoard(container, levelId, highlightName = null) {
+  const request = ++boardRequest;
+  container.dataset.request = String(request);
+  container.replaceChildren(h('p', { class: 'empty', text: 'Loading scores…' }));
+  let rows;
+  let note = null;
+  if (canUseOnline()) {
+    try {
+      rows = await online.list(levelId);
+    } catch (err) {
+      note = `${err.message} Showing scores saved on this device.`;
+    }
+  }
+  if (!rows) rows = await local.list(levelId);
+  if (container.dataset.request !== String(request)) return;  // a newer tab click won
+
+  const parts = [];
+  if (note) parts.push(h('p', { class: 'board-note', role: 'status', text: note }));
   if (!rows.length) {
-    container.replaceChildren(h('p', { class: 'empty', text: `No ${LEVELS[levelId].label} scores yet. Be the first on the board.` }));
+    parts.push(h('p', { class: 'empty', text: `No ${LEVELS[levelId].label} scores yet. Be the first on the board.` }));
+    container.replaceChildren(...parts);
     return;
   }
+  const you = highlightName ? highlightName.toLowerCase() : null;
   const fmt = new Intl.DateTimeFormat('en-NG', { day: 'numeric', month: 'short' });
-  container.replaceChildren(h('table', { class: 'board-table' },
+  parts.push(h('table', { class: 'board-table' },
     h('thead', {}, h('tr', {},
       h('th', { scope: 'col', text: '#' }), h('th', { scope: 'col', text: 'Player' }),
       h('th', { scope: 'col', class: 'num', text: 'Score' }), h('th', { scope: 'col', class: 'num', text: 'Accuracy' }),
       h('th', { scope: 'col', class: 'num hide-sm', text: 'Streak' }), h('th', { scope: 'col', class: 'num hide-sm', text: 'Date' }))),
-    h('tbody', {}, rows.map((r, idx) => h('tr', { class: highlightRank === idx + 1 ? 'is-you' : null },
-      h('td', { text: idx + 1 }), h('td', { class: 'name', text: r.name }),
+    h('tbody', {}, rows.map((r, idx) => h('tr', { class: you && r.name.toLowerCase() === you ? 'is-you' : null },
+      h('td', { text: r.rank ?? idx + 1 }), h('td', { class: 'name', text: r.name }),
       h('td', { class: 'num strong', text: r.score.toLocaleString('en-NG') }),
       h('td', { class: 'num', text: `${r.accuracy}%` }),
       h('td', { class: 'num hide-sm', text: r.bestStreak }),
-      h('td', { class: 'num hide-sm', text: fmt.format(new Date(r.at)) }))))));
+      h('td', { class: 'num hide-sm', text: r.at ? fmt.format(new Date(r.at)) : '' }))))));
+  container.replaceChildren(...parts);
 }
 
 // ---------- Round ----------
@@ -192,6 +229,7 @@ function startGame(levelId) {
   });
   state.i = 0;
   state.results = [];
+  state.answers = [];
   state.score = 0;
   state.streak = 0;
   show('round');
@@ -352,6 +390,8 @@ function lockIn(timedOut) {
   state.streak = score.newStreak;
   state.score += score.points;
   state.results.push({ snippet: s, pickedLine: state.pickedLine, pickedType: state.pickedType, timedOut, score });
+  // What the online scoreboard needs to re-score this round on the server.
+  state.answers.push({ id: s.id, line: state.pickedLine ?? null, type: state.pickedType ?? null, left: score.tenthsLeft });
 
   $('#hud-score').textContent = state.score.toLocaleString('en-NG');
   $('#hud-streak').textContent = `×${state.streak}`;
@@ -488,29 +528,63 @@ function renderResults() {
   const msg = h('p', { class: 'save-msg', 'aria-live': 'polite' });
   const input = h('input', {
     id: 'player-name', name: 'player', type: 'text', maxlength: '24', autocomplete: 'nickname',
-    required: true, placeholder: 'e.g. Ada from Yaba', value: store.lastName(),
+    required: true, placeholder: 'e.g. Ada from Yaba', value: local.lastName(),
   });
-  const saveBtn = h('button', { class: 'btn btn-primary', type: 'submit', text: 'Save score' });
+  const postOnline = canUseOnline();
+  const saveBtn = h('button', { class: 'btn btn-primary', type: 'submit', text: postOnline ? 'Post score' : 'Save score' });
+  const answers = state.answers.slice();
+  let savedLocally = false;
   const form = h('form', {
     class: 'save-form',
     onsubmit: async (e) => {
       e.preventDefault();
-      const name = input.value.trim();
-      if (!name) { msg.textContent = 'Add a name for the board.'; input.focus(); return; }
+      const name = cleanName(input.value);
+      if (!name) { msg.textContent = 'Add a name for the board.'; msg.className = 'save-msg'; input.focus(); return; }
       saveBtn.disabled = true;
       input.disabled = true;
-      store.rememberName(name);
-      const { rank } = await store.add({ name, score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id });
-      msg.textContent = rank ? `Saved. You're number ${rank} on the ${lvl.label} board.` : 'Saved, but this score is outside the top ten.';
-      fillBoard(boardBody, lvl.id, rank);
+      local.rememberName(name);
+      if (!savedLocally) {
+        await local.add({ name, score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id });
+        savedLocally = true;
+      }
+      if (!postOnline) {
+        msg.className = 'save-msg';
+        msg.textContent = 'Saved on this device.';
+        fillBoard(boardBody, lvl.id, name);
+        return;
+      }
+      msg.className = 'save-msg is-pending';
+      msg.textContent = `Posting to the ${boardName()}…`;
+      try {
+        const res = await online.submit({ name, level: lvl.id, answers });
+        const parts = [`Posted to the ${boardName()}.`];
+        if (res.rank && res.of) parts.push(`This game ranks number ${res.rank} of ${res.of} ${res.of === 1 ? 'player' : 'players'} at ${lvl.label}.`);
+        if (res.score !== sum.total) parts.push(`The scoreboard counted ${Number(res.score).toLocaleString('en-NG')} points.`);
+        if (res.personal_best > res.score) parts.push(`Your best of ${Number(res.personal_best).toLocaleString('en-NG')} still stands.`);
+        msg.className = 'save-msg';
+        msg.textContent = parts.join(' ');
+        fillBoard(boardBody, lvl.id, res.name || name);
+      } catch (err) {
+        msg.className = 'save-msg is-warning';
+        msg.textContent = `${err.message} Your score is saved on this device.`;
+        if (err.network) {
+          saveBtn.textContent = 'Try again';
+          saveBtn.disabled = false;
+          input.disabled = false;
+        }
+        fillBoard(boardBody, lvl.id, name);
+      }
     },
   },
   h('label', { for: 'player-name', text: 'Name on the scoreboard' }),
-  h('div', { class: 'save-row' }, input, saveBtn));
+  h('div', { class: 'save-row' }, input, saveBtn),
+  h('p', { class: 'save-hint', text: postOnline
+    ? `Your name and score appear on the ${boardName()}. Don't use your full name if you'd rather stay private.`
+    : 'Saved on this device only.' }));
 
   screens.results.replaceChildren(
     h('div', { class: 'results-hero' },
-      h('p', { class: 'eyebrow', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${team ? ` · ${team.toUpperCase()}` : ''}` }),
+      h('p', { class: 'eyebrow', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${teamStatus.info ? ` · ${teamStatus.info.name.toUpperCase()}` : ''}` }),
       h('h1', { id: 'results-title' }, h('span', { class: 'big-score', text: sum.total.toLocaleString('en-NG') }), ' points'),
       h('p', { class: 'lead', text: message })),
     h('div', { class: 'stats' },
@@ -527,7 +601,7 @@ function renderResults() {
               h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }))))
           : h('p', { class: 'muted', text: 'Nothing missed. Try the next level when it opens.' })),
       h('section', { class: 'panel' },
-        h('h2', { text: 'Save your score' }),
+        h('h2', { text: postOnline ? 'Post your score' : 'Save your score' }),
         form, msg, boardBody)),
     h('section', { class: 'panel review' },
       h('h2', { text: 'Round by round' }),
@@ -574,15 +648,22 @@ async function fetchJson(url) {
   return res.json();
 }
 
+async function checkTeamLink() {
+  if (!team) return;
+  const badge = $('#team-badge');
+  try {
+    teamStatus.info = await online.checkTeam();
+    badge.textContent = `Team · ${teamStatus.info.name}`;
+    badge.hidden = false;
+  } catch (err) {
+    teamStatus.error = err.message;
+  }
+}
+
 async function boot() {
   $('#app-version').textContent = `v${APP.version}`;
-  if (team) {
-    const badge = $('#team-badge');
-    badge.textContent = `Team · ${team}`;
-    badge.hidden = false;
-  }
   try {
-    state.content = await loadContent(fetchJson);
+    [state.content] = await Promise.all([loadContent(fetchJson), checkTeamLink()]);
     renderHome();
     show('home');
   } catch (err) {

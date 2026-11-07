@@ -2,7 +2,7 @@
 
 export const APP = {
   name: 'Spot the Bug',
-  version: '0.4.0',
+  version: '0.5.0',
   org: 'Th3 SpaceIO',
   tagline: 'LEARN. BUILD. SECURE.',
   sister: { name: 'LureLens', url: 'https://thespaceio.github.io/LureLens/' },
@@ -37,6 +37,8 @@ export const LEVELS = {
 
 export const ROUNDS_PER_GAME = 10;
 
+// The online scoreboard re-scores every posted game with these same numbers
+// (public.arcade_submit_spot_the_bug in supabase/migrations). Change both together.
 export const SCORING = {
   line: 100,            // clicked the vulnerable line
   type: 50,             // picked the right vulnerability type
@@ -46,8 +48,18 @@ export const SCORING = {
 };
 
 export const STORAGE = {
-  // 'local' for now. 'supabase' will be added in storage.js when the shared board ships.
-  driver: 'local',
-  keyPrefix: 'stb:v1',
+  keyPrefix: 'stb:v1',      // scores saved on this device (used when offline)
   maxEntriesPerBoard: 10,
+};
+
+// Shared online scoreboard. Lives in the "LureLens" Supabase project
+// (organization "Th3 SpaceIO"), in its own "arcade" schema. The publishable key
+// is meant to be public: the database only lets it call three functions.
+export const ONLINE = {
+  enabled: true,
+  url: 'https://rxyhvpdbfuboukqgbych.supabase.co',
+  key: 'sb_publishable_v58sr6nGSPrgvUHMP8HVyw_SADkXbTk',
+  game: 'spot-the-bug',
+  timeoutMs: 8000,
+  boardSize: 10,
 };

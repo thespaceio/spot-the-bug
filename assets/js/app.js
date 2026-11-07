@@ -3,6 +3,7 @@ import { APP, LEVELS, ROUNDS_PER_GAME, SCORING } from './config.js';
 import { loadContent, countByLevel, buildGame, scoreRound, summarise } from './engine.js';
 import { highlightLine, LANGUAGE_LABEL } from './highlight.js';
 import { createScoreStore, readTeam } from './storage.js';
+import { isGameNight, nextGameNightLabel, GAME_NIGHT_URL } from './gamenight.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -27,6 +28,8 @@ function h(tag, props, ...children) {
 
 const team = readTeam();
 const store = createScoreStore({ team });
+// Public games open on Fridays (Game Night). Team boards are for training and stay open.
+const isOpen = () => Boolean(team) || isGameNight();
 
 const state = {
   content: null,
@@ -83,7 +86,9 @@ function renderHome() {
         h('li', {}, h('strong', { text: n }), n === 1 ? ' snippet' : ' snippets'),
         h('li', {}, h('strong', { text: `${lvl.seconds}s` }), ' per round'),
         h('li', {}, h('strong', { text: lvl.options }), ' answer choices')),
-      n
+      n && !isOpen()
+        ? h('button', { class: 'btn btn-ghost', type: 'button', disabled: true, text: 'Opens on Friday' })
+        : n
         ? h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id) },
             `Start ${lvl.label}`, h('span', { class: 'btn-sub', text: ` · ${rounds} rounds` }))
         : h('button', { class: 'btn btn-ghost', type: 'button', disabled: true, text: 'Coming soon' }));
@@ -106,6 +111,12 @@ function renderHome() {
         h('li', { text: 'JavaScript · Python · PHP' }),
         h('li', { text: 'OWASP Top 10:2025' }),
         h('li', { text: `${ROUNDS_PER_GAME} timed rounds` }))),
+    isOpen() ? null : h('section', { class: 'gamenight-closed', id: 'game-night-closed', role: 'status' },
+      h('h2', { text: 'Public games open on Fridays' }),
+      h('p', {}, 'The next Game Night is ', h('strong', { text: nextGameNightLabel() }),
+        '. Games open from midnight to midnight West Africa Time, and the Th3 SpaceIO community plays together live at 6pm.'),
+      h('p', { class: 'muted', text: 'Running staff training or a class? Team boards work any day. Your scoreboard stays open too.' }),
+      h('a', { class: 'btn btn-primary', href: GAME_NIGHT_URL, rel: 'noopener', text: 'Join Game Night' })),
     h('h2', { class: 'section-title', text: 'Choose your level' }),
     h('div', { class: 'levels' }, levelCards),
     h('div', { class: 'home-grid' },
@@ -170,6 +181,7 @@ async function fillBoard(container, levelId, highlightRank = null) {
 // ---------- Round ----------
 
 function startGame(levelId) {
+  if (!isOpen()) { renderHome(); return; }
   const level = LEVELS[levelId];
   state.level = level;
   state.rounds = buildGame({

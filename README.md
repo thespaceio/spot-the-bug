@@ -8,6 +8,10 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.4.0
+
+- **Game Night Fridays:** public games open from midnight to midnight West Africa Time every Friday, when the Th3 SpaceIO community plays live at 6pm. On other days the home screen shows the next Game Night's date. Team boards (`?team=...`) stay open every day for staff training and classes. Switch it off with `FRIDAY_ONLY` in `assets/js/gamenight.js`.
+
 ## What's in v0.3.0
 
 - Three levels, all open: Beginner, Intermediate and Advanced

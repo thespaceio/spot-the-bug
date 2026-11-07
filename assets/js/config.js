@@ -2,7 +2,7 @@
 
 export const APP = {
   name: 'Spot the Bug',
-  version: '0.3.0',
+  version: '0.4.0',
   org: 'Th3 SpaceIO',
   tagline: 'LEARN. BUILD. SECURE.',
   sister: { name: 'LureLens', url: 'https://thespaceio.github.io/LureLens/' },

@@ -350,3 +350,11 @@ button { font: inherit; color: inherit; }
   .line-tag { display: none !important; }
   .hud-stats { gap: 8px 18px; }
 }
+
+/* Game Night: shown on days other than Friday (assets/js/gamenight.js) */
+.gamenight-closed { margin: 8px 0 28px; padding: 20px 22px; border: 1px solid var(--green-line); border-radius: 14px; background: var(--green-soft); }
+.gamenight-closed h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.gamenight-closed p { margin: 0 0 10px; }
+.gamenight-closed .btn { margin-top: 6px; }
+@media (max-width: 560px) { .gamenight-closed .btn { width: 100%; } }
+

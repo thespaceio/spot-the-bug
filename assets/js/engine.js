@@ -67,6 +67,30 @@ export function buildGame({ snippets, categories, level, rounds, rng = Math.rand
     }));
 }
 
+/** A repeatable random number generator (mulberry32): the same seed gives the same numbers. */
+export function seededRng(seed) {
+  let t = (Number(seed) >>> 0) || 1;
+  return () => {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A class game: the class's snippets in the class's order, with answer choices
+ * from the class's seed, so every student sees exactly the same game.
+ * Returns null if this copy of the game is missing one of the snippets.
+ */
+export function buildClassGame({ snippets, categories, level, ids, seed }) {
+  const byId = new Map(snippets.map((s) => [s.id, s]));
+  const picked = ids.map((id) => byId.get(id));
+  if (picked.some((s) => !s || s.difficulty !== level.id)) return null;
+  const rng = seededRng(seed);
+  return picked.map((snippet, index) => ({ index, snippet, options: buildOptions(snippet, categories, level.options, rng) }));
+}
+
 export function isLineCorrect(snippet, line) {
   if (line == null) return false;
   return line === snippet.vulnerableLine || (snippet.acceptLines || []).includes(line);

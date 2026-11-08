@@ -6,6 +6,16 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.8',
+    title: 'Classroom',
+    items: [
+      'Run a class: share a 6-character code or QR, and everyone plays the same ten snippets once.',
+      'A live class board, and a round-by-round debrief: how many found the line, and the most common wrong answer.',
+      'Show the class on a projector, and open any round to walk through the vulnerable line and the fix.',
+      'Moderation tools for the Th3 SpaceIO team.',
+    ],
+  },
+  {
     version: '0.7',
     title: 'Progress, certificates and pause',
     items: [

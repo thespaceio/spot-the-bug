@@ -2,7 +2,7 @@
 import { h, icon, fmt, countUp, revealText, fill } from '../dom.js';
 import { ctx, canPostOnline, boardName, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
-import { onlineEnabled, postGame, fetchBoard } from '../online.js';
+import { onlineEnabled, postGame, fetchBoard, submitClassGame, classBoard } from '../online.js';
 import { history } from '../storage.js';
 import { syncHistory } from '../sync.js';
 import { drawShareCard, shareText } from '../draw.js';
@@ -23,6 +23,7 @@ export function renderResults(root) {
       id: r.id, level: lvl.id, date: r.date, score: sum.total, clean: sum.clean, lines: sum.lines,
       rounds: sum.rounds, accuracy: sum.accuracy, bestStreak: sum.bestStreak,
       team: ctx.teamStatus.info ? ctx.team.slug : null,
+      classCode: r.classInfo?.code || null,
       owner: isReady() ? auth.userId : null,
       answers: r.results.map((x, i) => ({
         id: x.snippet.id, category: x.snippet.category, line: x.pickedLine ?? null, type: x.pickedType ?? null,
@@ -42,13 +43,13 @@ export function renderResults(root) {
 
   const scoreEl = h('span', { class: 'big-score', text: '0' });
   const postPanel = h('section', { class: 'panel card post-panel', 'aria-labelledby': 'post-title' });
-  const renderPost = () => fill(postPanel, postContents(r));
+  const renderPost = () => fill(postPanel, r.classInfo ? classPostContents(r, renderPost) : postContents(r));
   renderPost();
   const off = onAuthChange(() => { if (!r.posted) renderPost(); });
 
   fill(root,
     h('div', { class: 'results-hero' },
-      h('p', { class: 'eyebrow text-in', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
+      h('p', { class: 'eyebrow text-in', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${r.classInfo ? ` · CLASS ${r.classInfo.code}` : ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
       h('h1', { id: 'results-title' }, scoreEl, h('span', { class: 'big-score-unit' }, revealText(' points', 500))),
       h('p', { class: 'lead text-in', style: { '--d': '400ms' }, text: message })),
     h('div', { class: 'stats' },
@@ -76,9 +77,12 @@ export function renderResults(root) {
           h('span', { class: 'review-cat', text: category(x.snippet.category).name }),
           h('span', { class: 'review-pts', text: `+${x.score.points}` }));
       }))),
-    h('div', { class: 'actions' },
-      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id), text: `Play ${lvl.label} again` }),
-      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => ctx.go('home'), text: 'Choose another level' })));
+    r.classInfo
+      ? h('div', { class: 'actions' },
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.go('class', { code: r.classInfo.code }), text: 'Back to the class' }))
+      : h('div', { class: 'actions' },
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id), text: `Play ${lvl.label} again` }),
+        h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => ctx.go('home'), text: 'Choose another level' })));
 
   countUp(scoreEl, sum.total);
   return () => {
@@ -131,6 +135,50 @@ function sharePanel(r) {
 function stat(label, value, i) {
   return h('div', { class: 'stat card rise-in', style: { '--i': i } },
     h('span', { class: 'stat-value', text: value }), h('span', { class: 'stat-label', text: label }));
+}
+
+// A class game goes to the class board (not the public scoreboard), once.
+function classPostContents(r, rerender) {
+  const cls = r.classInfo;
+  const title = (t) => h('h2', { id: 'post-title', text: t });
+  if (r.posted) {
+    const res = r.posted;
+    const board = h('div', { class: 'board-body' }, h('p', { class: 'empty', text: 'Loading the class board…' }));
+    classBoard(cls.code)
+      .then((rows) => board.replaceChildren(boardTable(rows.slice(0, 10), { caption: `${cls.name} class board` }) || h('p', { class: 'empty', text: 'No games yet.' })))
+      .catch(() => board.replaceChildren());
+    return [title('On the class board'),
+      h('p', { class: 'save-msg', role: 'status', text: `Posted to ${cls.name} as ${res.name}. You're number ${res.rank} of ${res.of} so far.` }),
+      board,
+      h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('class', { code: cls.code }) }, 'Open the class page ', icon('arrow', 'icon icon-sm'))];
+  }
+  if (auth.status === 'loading') return [title('Class board'), h('p', { class: 'muted', text: 'Checking your sign-in…' })];
+  if (!isReady()) {
+    return [title('Class board'),
+      h('p', { class: 'muted', text: `Sign in or quick join to add this game to ${cls.name}. It's saved on this device already.` }),
+      h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'btn btn-primary', onclick: () => { ctx.returnTo = 'results'; ctx.go('account'); } },
+        icon('user', 'icon icon-sm'), 'Sign in or quick join'))];
+  }
+  const msg = h('p', { class: 'save-msg is-pending', 'aria-live': 'polite', text: `Adding your game to ${cls.name}…` });
+  const retry = h('button', { type: 'button', class: 'btn btn-primary', hidden: true, onclick: () => { r.classError = null; r.classPosting = false; rerender(); } }, 'Try again');
+  if (r.classError) {
+    msg.className = 'save-msg is-warning';
+    msg.textContent = r.classError;
+    retry.hidden = Boolean(r.classFinal);
+  } else if (!r.classPosting) {
+    r.classPosting = true;
+    submitClassGame(cls.code, r.answers).then((res) => {
+      r.posted = res;
+      history.update(r.id, { posted: true });
+      rerender();
+    }).catch((err) => {
+      r.classError = err.message;
+      r.classFinal = /already played|closed|doesn't exist/i.test(err.message);
+      r.classPosting = false;
+      rerender();
+    });
+  }
+  return [title('Class board'), msg, h('div', { class: 'btn-row' }, retry)];
 }
 
 // The "post your score" panel, in whichever state applies.

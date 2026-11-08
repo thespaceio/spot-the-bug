@@ -1,50 +1,21 @@
-// Big screen for projectors at classes and events (?live, or ?live&team=…&key=…).
+// Big screen for projectors at classes and events (?live, ?live&team=…&key=…,
+// or ?live&class=CODE for a class: its board and the round-by-round debrief).
 // Large type, level tabs, this week or all time, live updates and a join QR code.
 import { LEVELS, SITE_URL } from '../config.js';
-import { h, fmt, revealText } from '../dom.js';
+import { h, fmt, revealText, fill } from '../dom.js';
 import { ctx } from '../context.js';
-import { fetchBoard, liveUpdates } from '../online.js';
+import { fetchBoard, liveUpdates, onlineEnabled, getClass, classBoard, classDebrief, classTopic } from '../online.js';
+import { LANGUAGE_LABEL } from '../highlight.js';
+import { category } from '../context.js';
+import { debrief } from './classroom.js';
+import { staticCode } from './round.js';
 import { liveDot, segmented } from './board.js';
+import { qrSvg } from '../qr.js';
 
 const LEVEL_OPTIONS = [{ id: 'all', label: 'All levels' }, ...Object.values(LEVELS).map((l) => ({ id: l.id, label: l.label }))];
 
-function loadQr() {
-  return new Promise((resolve) => {
-    if (globalThis.qrcode) { resolve(globalThis.qrcode); return; }
-    const s = document.createElement('script');
-    s.src = new URL('../../vendor/qrcode.js', import.meta.url).href;
-    s.onload = () => resolve(globalThis.qrcode || null);
-    s.onerror = () => resolve(null);
-    document.head.append(s);
-  });
-}
-
-/** A QR code drawn as one SVG path, dark on white so every phone camera reads it. */
-async function qrSvg(text, label) {
-  const qrcode = await loadQr();
-  if (!qrcode) return null;
-  const qr = qrcode(0, 'M');
-  qr.addData(text);
-  qr.make();
-  const n = qr.getModuleCount();
-  let d = '';
-  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${n + 8} ${n + 8}`);
-  svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', label);
-  svg.setAttribute('shape-rendering', 'crispEdges');
-  svg.setAttribute('class', 'qr');
-  const bg = document.createElementNS(ns, 'rect');
-  bg.setAttribute('width', n + 8); bg.setAttribute('height', n + 8); bg.setAttribute('fill', '#ffffff');
-  const path = document.createElementNS(ns, 'path');
-  path.setAttribute('d', d); path.setAttribute('fill', '#0A1628');
-  svg.append(bg, path);
-  return svg;
-}
-
 export function renderLive(root) {
+  if (ctx.liveClass && onlineEnabled()) return renderClassLive(root, ctx.liveClass);
   const teamOk = Boolean(ctx.teamStatus.info);
   const view = { level: 'all', range: 'week' };
   const dot = liveDot();
@@ -92,4 +63,89 @@ export function renderLive(root) {
   load();
   const live = liveUpdates(load, { onStatus: dot.set, topic: teamOk ? null : undefined, pollMs: teamOk ? 20_000 : 60_000 });
   return () => live.stop();
+}
+
+// ---------- a class on the big screen ----------
+
+function renderClassLive(root, code) {
+  const dot = liveDot();
+  const view = { tab: 'scores', picked: null, rounds: [], rows: [] };
+  const main = h('div', { class: 'live-main' });
+  const count = h('p', { class: 'live-count', text: '' });
+  const link = `${SITE_URL}?class=${code}`;
+  const qrBox = h('div', { class: 'live-qr' });
+  qrSvg(link, `QR code to join class ${code}`).then((svg) => { if (svg) qrBox.prepend(svg); });
+  const title = h('h1', { class: 'live-title', text: 'Class' });
+  const tabs = segmented('Show', [{ id: 'scores', label: 'Scores' }, { id: 'debrief', label: 'Round by round' }], view.tab, (id) => { view.tab = id; view.picked = null; draw(); });
+
+  function draw() {
+    if (view.picked) { fill(main, snippetDebrief(view.picked, () => { view.picked = null; draw(); })); return; }
+    if (view.tab === 'debrief') {
+      fill(main, view.rounds.length ? debrief(view.rounds, { onPick: (d, s) => { if (s) { view.picked = { d, s }; draw(); } } }) : h('p', { class: 'live-empty', text: 'Loading…' }));
+      return;
+    }
+    fill(main, h('ol', { class: 'live-list' }, view.rows.length ? view.rows.slice(0, 12).map((r, i) => h('li', { class: `live-row rise-in${i < 3 ? ` live-top live-${i + 1}` : ''}`, style: { '--i': i } },
+      h('span', { class: 'live-rank', text: r.rank }),
+      h('span', { class: 'live-name', text: r.name }),
+      h('span', { class: 'live-level', text: `${r.accuracy}%` }),
+      h('span', { class: 'live-score', text: fmt(r.score) })))
+      : h('li', { class: 'live-empty', text: 'Waiting for the first game…' })));
+  }
+
+  async function load() {
+    try {
+      const [rows, rounds] = await Promise.all([classBoard(code), classDebrief(code)]);
+      view.rows = rows;
+      view.rounds = rounds;
+      count.textContent = `${rows.length} ${rows.length === 1 ? 'player' : 'players'}`;
+      if (!view.picked) draw();
+    } catch (err) {
+      fill(main, h('p', { class: 'live-empty', text: err.message }));
+    }
+  }
+
+  fill(root, h('div', { class: 'live-screen' },
+    h('header', { class: 'live-head' },
+      h('div', {}, h('p', { class: 'eyebrow text-in', text: `CLASS · ${code}` }), title),
+      h('div', { class: 'live-controls' }, tabs, dot.el)),
+    h('div', { class: 'live-body' },
+      main,
+      h('aside', { class: 'live-join card' },
+        qrBox,
+        h('p', { class: 'live-join-title', text: 'Scan to join' }),
+        h('p', { class: 'live-code mono', text: code }),
+        h('p', { class: 'live-join-url', text: link.replace(/^https:\/\//, '') }),
+        count,
+        h('a', { class: 'link-btn live-exit', href: `./?class=${code}`, text: 'Exit big screen' })))));
+
+  getClass(code).then((info) => {
+    if (!info) { fill(main, h('p', { class: 'live-empty', text: `No class has the code ${code}.` })); return; }
+    title.textContent = info.name;
+    document.title = `${info.name} · Spot the Bug`;
+  }).catch(() => {});
+  draw();
+  load();
+  const live = liveUpdates(load, { topic: classTopic(code), event: 'class_result', pollMs: 15_000, onStatus: dot.set });
+  return () => live.stop();
+}
+
+/** One round on the projector: the vulnerable line, the fix, and how the class did. */
+function snippetDebrief({ d, s }, back) {
+  const pct = (n) => (d.played ? Math.round((n / d.played) * 100) : 0);
+  return h('div', { class: 'live-snippet rise-in' },
+    h('button', { type: 'button', class: 'btn btn-ghost', onclick: back }, '← All rounds'),
+    h('div', { class: 'live-snippet-head' },
+      h('p', { class: 'eyebrow', text: `ROUND ${d.round} · ${(LANGUAGE_LABEL[s.language] || s.language).toUpperCase()} · ${s.id}` }),
+      h('h2', { text: s.title }),
+      h('p', { class: 'muted', text: `${pct(d.lineFound)}% found the line · ${pct(d.clean)}% got it clean${d.topWrong ? ` · most common wrong answer: ${category(d.topWrong).name}` : ''}` })),
+    h('div', { class: 'compare' },
+      h('div', { class: 'code-panel' },
+        h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-red' }), h('span', { text: `Vulnerable · ${category(s.category).name}` })),
+        staticCode(s.code, s.language, new Set([s.vulnerableLine]), 'is-vuln')),
+      h('div', { class: 'code-panel' },
+        h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-green' }), h('span', { text: 'Fixed' })),
+        staticCode(s.fix.code, s.language, new Set(s.fix.changedLines || []), 'is-fixed'))),
+    h('div', { class: 'explain panel card' },
+      h('div', {}, h('h3', { text: "What's wrong" }), h('p', { text: s.explanation })),
+      h('div', {}, h('h3', { text: 'The fix' }), h('p', { text: s.fix.summary }))));
 }

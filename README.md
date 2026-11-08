@@ -8,6 +8,13 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.8.0
+
+- **Classroom** (`?class`): a teacher signs in, names the class, picks a level and how long it stays open (1 hour to 3 days), and gets a 6-character code, a link (`?class=CODE`) and a QR code. Students quick join with a username and play the **same ten snippets in the same order with the same answer choices**, once. Class games go to the class board only, not the public scoreboard.
+- **Live class board** and a **round-by-round debrief**: how many found the line, how many got it clean, and the wrong answer picked most often. Students see the debrief after they've played (or once the class closes); the teacher sees it all along, can remove a name from the board, and can close or reopen the class.
+- **Class big screen** (`?live&class=CODE`): scores or round by round, with the join QR. Click a round to show the vulnerable line, the fix and the explanation on the projector.
+- **Moderation** (`?moderate`, linked from the Account page for moderators): recent, flagged and hidden games, certificates and classes; hide or show each, hide a player everywhere (Spot the Bug and LureLens), with a reason, and a log. Moderators are LureLens's (`public.moderators`).
+
 ## What's new in v0.7.0
 
 - **Progress page** (`?progress`): games, rounds, accuracy and best streak; accuracy per level and per flaw type; the three weakest flaw types to practise; recent games.
@@ -53,6 +60,8 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 - Progress per level and flaw type, synced to the account when signed in
 - Certificate for 80%+ at every level, with online checking (`?cert=REF`) and Add to LinkedIn
 - Share card, pause, report a mistake, What's new, offline play
+- Free classroom mode with a shared game per class, a live class board, a debrief and a projector view
+- Moderation tools for the Th3 SpaceIO team
 - No build step, no dependencies, strict Content Security Policy
 
 ## Run it locally
@@ -99,7 +108,8 @@ assets/js/sync.js             keeps a signed-in player's games in their account
 assets/js/stats.js            Progress numbers (no DOM)
 assets/js/draw.js             share card and certificate images (canvas)
 assets/js/whatsnew.js         the What's new note and the release list
-assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, account, about, privacy, live
+assets/js/qr.js               QR codes for join links
+assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
 data/categories.json          the 10 vulnerability types, mapped to OWASP Top 10:2025
@@ -194,6 +204,8 @@ How it stays honest:
 
 - Posting needs an account: email code or quick join. Accounts, usernames and profiles are LureLens's (`auth.users`, `public.profiles`, `save_profile`, `delete_my_account`), so one username works in both games. Deleting an account deletes its Spot the Bug scores too, and a player a LureLens moderator hides is hidden here as well.
 - The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_submit_spot_the_bug`, `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
+- Classes: `arcade_create_class` (signed in, 20 a day), `arcade_class`, `arcade_class_board` and `arcade_class_debrief` (anyone with the code), `arcade_class_submit` (signed in, one game per player per class, must match the class's snippets in order, scored on the server like the public board), `arcade_my_classes`, `arcade_close_class` and `arcade_class_hide_result` (the teacher). Each new class result sends a live signal on `arcade:class:CODE`.
+- Moderation: `arcade_mod_scores`, `arcade_mod_list`, `arcade_mod_set_hidden` and `arcade_mod_history` check `public.is_moderator()` on every call; every hide and show is logged in `arcade.moderation_log`.
 - A certificate is issued only from posted games (server-scored, not hidden) with 80%+ at each level, one per account; its reference is random and renaming keeps the same reference.
 - A posted game sends the answers (snippet, line, flaw type, time left), not a score. The server re-scores it against its own answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
 - Each game must have 10 different snippets from the right level. Games are filed under the account's username; a name sent by the browser is ignored.
@@ -232,6 +244,14 @@ update public.profiles set hidden = true where lower(username) = lower('Offensiv
 1. Bump `version` in `assets/js/config.js` and `package.json`.
 2. Add the release to `RELEASES` in `assets/js/whatsnew.js` (returning players see it once).
 3. Run `node scripts/update-sw.mjs` so the offline copy picks up new and changed files, then `npm test`.
+
+### Add a moderator
+
+Moderators are shared with LureLens. In the SQL editor, with the player's username:
+
+```sql
+insert into public.moderators (user_id) select id from public.profiles where lower(username) = lower('Their Username');
+```
 
 ### Withdraw a certificate
 

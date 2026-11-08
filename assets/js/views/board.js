@@ -2,7 +2,7 @@
 import { LEVELS } from '../config.js';
 import { h, fmt, dateLabel } from '../dom.js';
 
-const STATUS_TEXT = { connecting: 'Connecting', live: 'Live', polling: 'Updates every minute' };
+const STATUS_TEXT = { connecting: 'Connecting', live: 'Live', polling: 'Refreshes automatically' };
 
 export function liveDot(status = 'connecting') {
   const el = h('span', { class: 'live-status', role: 'status' });

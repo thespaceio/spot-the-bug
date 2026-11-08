@@ -1,6 +1,6 @@
 // The timed round: pick the vulnerable line, name the flaw, see the fix.
 import { LEVELS, ROUNDS_PER_GAME, REPO_URL, CONTACT_EMAIL, APP } from '../config.js';
-import { buildGame, scoreRound, summarise } from '../engine.js';
+import { buildGame, buildClassGame, scoreRound, summarise } from '../engine.js';
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
 import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
@@ -21,6 +21,7 @@ const game = {
   deadline: 0,
   paused: false,
   leftMs: 0,          // time left when paused
+  classInfo: null,    // set for a class game (everyone plays the same snippets)
 };
 let root = null;
 
@@ -36,9 +37,15 @@ export function confirmLeave() {
   return window.confirm("Leave this game? This round won't be saved.");
 }
 
-export function renderRound(el, { level } = {}) {
+/** From a class page: the class's game (same snippets and choices for everyone). */
+export function startClassGame(info) {
+  ctx.go('round', { classInfo: info });
+}
+
+export function renderRound(el, { level, classInfo } = {}) {
   root = el;
-  if (level || !game.rounds.length) begin(level || 'beginner');
+  if (classInfo) beginClass(classInfo);
+  else if (level || !game.rounds.length) begin(level || 'beginner');
   else renderCurrent();
   document.addEventListener('keydown', onKeys);
   document.addEventListener('visibilitychange', onHidden);
@@ -56,7 +63,30 @@ export function renderRound(el, { level } = {}) {
 function begin(levelId) {
   const lvl = LEVELS[levelId];
   game.level = lvl;
+  game.classInfo = null;
   game.rounds = buildGame({ snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME });
+  reset();
+}
+
+function beginClass(info) {
+  const lvl = LEVELS[info.level];
+  const rounds = lvl && buildClassGame({ snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, ids: info.snippets, seed: info.seed });
+  if (!rounds) {
+    game.phase = 'idle';
+    game.rounds = [];
+    root.replaceChildren(h('div', { class: 'panel card error' },
+      h('h1', { text: "This class game can't start here" }),
+      h('p', { text: "The class uses snippets this copy of Spot the Bug doesn't have yet. Reload the page to get the latest version, then try again." }),
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => location.reload(), text: 'Reload' })));
+    return;
+  }
+  game.level = lvl;
+  game.classInfo = info;
+  game.rounds = rounds;
+  reset();
+}
+
+function reset() {
   game.i = 0;
   game.results = [];
   game.answers = [];
@@ -69,7 +99,8 @@ function hud() {
   const total = game.rounds.length;
   return h('div', { class: 'hud card' },
     h('div', { class: 'hud-stats' },
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Level' }), h('span', { class: 'hud-value', text: game.level.label })),
+      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: game.classInfo ? 'Class' : 'Level' }),
+        h('span', { class: 'hud-value', text: game.classInfo ? game.classInfo.code : game.level.label, title: game.classInfo ? `${game.classInfo.name} · ${game.level.label}` : null })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Round' }), h('span', { class: 'hud-value', text: `${game.i + 1} / ${total}` })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Score' }), h('span', { class: 'hud-value', id: 'hud-score', text: fmt(game.score) })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Streak' }),
@@ -79,7 +110,7 @@ function hud() {
       h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
     h('div', { class: 'hud-actions' },
       h('button', { class: 'btn btn-quiet', id: 'pause', type: 'button', 'aria-keyshortcuts': 'P', onclick: togglePause }, icon('pause', 'icon icon-sm'), h('span', { text: 'Pause' })),
-      h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => ctx.go('home'), text: 'Quit' })));
+      h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => ctx.go(game.classInfo ? 'class' : 'home'), text: 'Quit' })));
 }
 
 function renderCurrent() {
@@ -350,7 +381,7 @@ function renderVerdict(s, score, timedOut) {
   $('#next').focus({ preventScroll: true });
 }
 
-function staticCode(lines, language, marks, cls) {
+export function staticCode(lines, language, marks, cls) {
   return h('div', { class: 'code code-static' },
     lines.map((text, idx) => h('div', { class: `line${marks.has(idx + 1) ? ` ${cls}` : ''}` },
       h('span', { class: 'ln', 'aria-hidden': 'true', text: idx + 1 }),
@@ -416,6 +447,7 @@ function nextRound() {
     summary: summarise(game.results, ctx.content.categories),
     saved: false,
     posted: null,
+    classInfo: game.classInfo,
   };
   game.rounds = [];
   ctx.go('results');

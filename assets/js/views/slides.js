@@ -51,6 +51,12 @@ const VISUALS = {
     h('div', { class: 'mini-cert-levels' }, [['Beginner', '90%'], ['Intermediate', '85%'], ['Advanced', '80%']].map(([lvl, pct], i) =>
       h('div', { class: 'mini-row', style: { '--i': i } }, h('span', {}, icon('check', 'icon icon-sm icon-green'), ` ${lvl}`), h('span', { class: 'mini-score', text: pct }))))),
 
+  classroom: () => h('div', { class: 'mini-card' },
+    h('div', { class: 'mini-top' }, h('span', { text: 'CLASS · K7Q2XM' }), h('span', { text: 'ROUND 4' })),
+    h('p', { class: 'mini-cert-title', text: 'Path traversal in a receipt download' }),
+    h('div', { class: 'mini-cert-levels' }, [['Found the line', '82%'], ['Clean', '64%']].map(([label, pct], i) =>
+      h('div', { class: 'mini-row', style: { '--i': i } }, h('span', { text: label }), h('span', { class: 'mini-score', text: pct }))))),
+
   team: () => h('div', { class: 'mini-card' },
     h('div', { class: 'mini-top' }, h('span', {}, icon('users', 'icon icon-sm'), ' TEAM · ACME BANK'), h('span', { text: 'PRIVATE' })),
     [['dev.tunde', '3,520'], ['ngozi.o', '3,105'], ['sam_k', '2,890']].map(([name, score], i) =>
@@ -64,6 +70,7 @@ const SLIDES = [
   { tag: 'THE FIX', title: 'See the vulnerable line next to the fixed one.', sub: 'Every round ends with what went wrong, how an attacker would use it, and the fix.', visual: 'fix' },
   { tag: 'LIVE SCOREBOARD', title: 'Sign in or quick join, then climb the live board.', sub: 'One account for Spot the Bug and LureLens. Quick join needs nothing but a username.', visual: 'board' },
   { tag: 'CERTIFICATE', title: 'Score 80% at every level. Earn the certificate.', sub: 'Print it, add it to LinkedIn, and let anyone check it online with its reference.', visual: 'cert' },
+  { tag: 'CLASSROOM', title: 'Teaching secure coding? Run a class.', sub: 'Share a code, everyone plays the same ten snippets, then go through the answers round by round on the projector.', visual: 'classroom' },
   { tag: 'TEAMS', title: 'Train your developers on a private team board.', sub: 'Companies and bootcamps get their own link and leaderboard, open every day.', visual: 'team' },
 ];
 

@@ -55,4 +55,25 @@ assert.equal(isNewer('0.7.0', '0.6.3'), true);
 assert.equal(isNewer('0.7.2', '0.7.0'), false);
 assert.equal(isNewer('1.0.0', '0.9.0'), true);
 
-console.log('Progress and certificate tests passed.');
+// Class games: same seed, same game; different seed, different answer order.
+import('../assets/js/engine.js').then(async ({ seededRng, buildClassGame, loadContent }) => {
+  const { readFile } = await import('node:fs/promises');
+  const content = await loadContent((url) => readFile(new URL(`../${url}`, import.meta.url), 'utf8').then(JSON.parse));
+  const { LEVELS } = await import('../assets/js/config.js');
+  const ids = content.snippets.filter((s) => s.difficulty === 'intermediate').slice(0, 10).map((s) => s.id).reverse();
+  const a = buildClassGame({ ...content, level: LEVELS.intermediate, ids, seed: 1234 });
+  const b = buildClassGame({ ...content, level: LEVELS.intermediate, ids, seed: 1234 });
+  const c = buildClassGame({ ...content, level: LEVELS.intermediate, ids, seed: 98765 });
+  assert.deepEqual(a.map((r) => r.snippet.id), ids);
+  assert.deepEqual(a.map((r) => r.options), b.map((r) => r.options));
+  assert.notDeepEqual(a.map((r) => r.options), c.map((r) => r.options));
+  assert.ok(a.every((r) => r.options.includes(r.snippet.category) && r.options.length === LEVELS.intermediate.options));
+  assert.equal(buildClassGame({ ...content, level: LEVELS.beginner, ids, seed: 1 }), null);   // wrong level
+  assert.equal(buildClassGame({ ...content, level: LEVELS.intermediate, ids: [...ids.slice(1), 'NOPE-1'], seed: 1 }), null);
+  const r = seededRng(42);
+  const first = [r(), r(), r()];
+  const r2 = seededRng(42);
+  assert.deepEqual(first, [r2(), r2(), r2()]);
+  assert.ok(first.every((x) => x >= 0 && x < 1));
+  console.log('Progress, certificate and class game tests passed.');
+});

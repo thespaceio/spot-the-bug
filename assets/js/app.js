@@ -1,5 +1,5 @@
 // App shell: menu, screens, links (?live, ?privacy, ?account, ?scoreboard,
-// ?progress, ?about, ?cert=REF), the back button, and start-up. Each screen lives in views/.
+// ?progress, ?about, ?cert=REF, ?class=CODE, ?moderate), the back button, and start-up. Each screen lives in views/.
 import { APP } from './config.js';
 import { loadContent } from './engine.js';
 import { $, $$, h, icon } from './dom.js';
@@ -16,6 +16,9 @@ import { renderPrivacy } from './views/privacy.js';
 import { renderLive } from './views/live.js';
 import { renderProgress } from './views/progress.js';
 import { renderCertCheck } from './views/certcheck.js';
+import { renderClassroom } from './views/classroom.js';
+import { renderModerate } from './views/moderate.js';
+import { cleanClassCode } from './online.js';
 import { startSync } from './sync.js';
 import { history as games } from './storage.js';
 import { maybeShowWhatsNew } from './whatsnew.js';
@@ -31,21 +34,30 @@ const VIEWS = {
   live: renderLive,
   progress: renderProgress,
   cert: renderCertCheck,
+  class: renderClassroom,
+  moderate: renderModerate,
 };
 // Screens that have their own link (?scoreboard and so on).
-const LINKED = ['scoreboard', 'progress', 'account', 'about', 'privacy', 'live', 'cert'];
+const LINKED = ['scoreboard', 'progress', 'class', 'account', 'about', 'privacy', 'live', 'cert', 'moderate'];
 
 const NAV = [
   { id: 'home', label: 'Play', short: 'Play', icon: 'play' },
   { id: 'scoreboard', label: 'Scoreboard', short: 'Scores', icon: 'trophy' },
   { id: 'progress', label: 'Progress', short: 'Progress', icon: 'chart' },
+  { id: 'class', label: 'Class', short: 'Class', icon: 'users' },
   { id: 'about', label: 'About', short: 'About', icon: 'info' },
   { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
 ];
-const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress' };
+const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
 
 let cleanup = null;
-const SW_ON_LOCALHOST = new URLSearchParams(location.search).has('sw');   // read before the address is tidied
+const START = new URLSearchParams(location.search);   // read before the address is tidied
+const SW_ON_LOCALHOST = START.has('sw');
+if (START.has('class')) {
+  const code = cleanClassCode(START.get('class'));
+  if (START.has('live')) ctx.liveClass = code.length === 6 ? code : null;
+  else ctx.classCode = code || null;
+}
 
 function teamQuery() {
   return ctx.team ? `team=${encodeURIComponent(ctx.team.slug)}${ctx.team.key ? `&key=${encodeURIComponent(ctx.team.key)}` : ''}` : '';
@@ -53,12 +65,15 @@ function teamQuery() {
 
 function urlFor(view) {
   if (view === 'cert') return `${location.pathname}?cert=${encodeURIComponent(ctx.certRef || '')}`;
+  if (view === 'class') return `${location.pathname}?class${ctx.classCode ? `=${ctx.classCode}` : ''}`;
+  if (view === 'live' && ctx.liveClass) return `${location.pathname}?live&class=${ctx.liveClass}`;
   const parts = [LINKED.includes(view) ? view : '', teamQuery()].filter(Boolean);
   return `${location.pathname}${parts.length ? `?${parts.join('&')}` : ''}`;
 }
 
 function viewFromUrl() {
   const params = new URLSearchParams(location.search);
+  if (params.has('live')) return 'live';
   return LINKED.find((v) => params.has(v)) || 'home';
 }
 
@@ -98,7 +113,8 @@ function go(view, opts = {}, { push = true } = {}) {
 
 window.addEventListener('popstate', (e) => {
   const view = e.state?.view || viewFromUrl();
-  if (view === ctx.view) return;
+  if (view === 'class' && ctx.view === 'class') { go('class', { code: new URLSearchParams(location.search).get('class') || '' }, { push: false }); return; }
+  if (view === ctx.view && view !== 'cert') return;
   if (view === 'round') { go('home', {}, { push: false }); return; }       // a finished or left game can't be resumed
   if (view === 'results' && !ctx.result) { go('home', {}, { push: false }); return; }
   if (!go(view, {}, { push: false })) history.pushState({ view: ctx.view }, '', urlFor(ctx.view));   // stayed in the game

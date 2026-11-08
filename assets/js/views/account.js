@@ -7,11 +7,12 @@ import {
   auth, isReady, onAuthChange, sendCode, verifyCode, quickJoin, addEmail, confirmEmail,
   saveProfile, signOut, deleteAccount,
 } from '../auth.js';
+import { isModerator } from '../online.js';
 
 // Form drafts survive re-renders (for example when sign-in finishes loading).
 const draft = { email: '', code: '', codeSentTo: '', addEmail: '', addCode: '', addSentTo: '', editing: false, deleting: false, confirm: '' };
 
-const RETURN_LABEL = { results: 'Back to your results', scoreboard: 'Back to the scoreboard', home: 'Back to the game' };
+const RETURN_LABEL = { results: 'Back to your results', scoreboard: 'Back to the scoreboard', home: 'Back to the game', progress: 'Back to your progress', class: 'Back to the class' };
 
 export function renderAccount(root) {
   let key = '';
@@ -67,6 +68,7 @@ function page() {
   return [head, h('div', { class: 'account-stack stagger-children' }, h('span', { hidden: true }),
     returnBanner(),
     summaryPanel(),
+    moderatorPanel(),
     auth.anonymous ? keepAccountPanel() : null,
     dangerPanel()), privacyNote()];
 }
@@ -191,6 +193,20 @@ function summaryPanel() {
     h('div', { class: 'btn-row' },
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { draft.editing = true; ctx.go('account'); } }, icon('edit', 'icon icon-sm'), 'Edit profile'),
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => signOut() }, icon('logout', 'icon icon-sm'), 'Sign out')));
+}
+
+// Shown only to LureLens/Spot the Bug moderators, once the check comes back.
+function moderatorPanel() {
+  const slot = h('div', { hidden: true });
+  isModerator().then((yes) => {
+    if (!yes || !slot.isConnected) return;
+    slot.hidden = false;
+    slot.replaceChildren(h('section', { class: 'panel card' },
+      h('h2', {}, icon('shield', 'icon icon-sm icon-green'), ' Moderation'),
+      h('p', { class: 'muted', text: 'Review posted games, certificates and classes, and hide anything that breaks the rules.' }),
+      h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => ctx.go('moderate') }, 'Open moderation', icon('arrow', 'icon icon-sm')))));
+  }).catch(() => {});
+  return slot;
 }
 
 function keepAccountPanel() {

@@ -14,7 +14,7 @@ export function friendlyError(error, fallback) {
   }
   // Messages from our own checks (code 22023) are written for players.
   if (error?.code === '22023' && error.message) return new OnlineError(error.message);
-  if (error?.code === '42501') return new OnlineError('Sign in or quick join to do that.');
+  if (error?.code === '42501') return new OnlineError(/moderators/i.test(error.message || '') ? 'Only moderators can do that.' : 'Sign in or quick join to do that.');
   if (!error?.code && /fetch|network|load/i.test(error?.message ?? '')) {
     return new OnlineError("Couldn't reach the online scoreboard. Check your connection and try again.");
   }
@@ -139,3 +139,56 @@ export async function pullHistory() {
 export const registerCertificate = (displayName) => rpc('arcade_register_certificate', { p_display_name: displayName || null });
 export const myCertificate = () => rpc('arcade_my_certificate', {});
 export const checkCertificate = (reference) => rpc('arcade_check_certificate', { p_reference: reference });
+
+// ---------- classes ----------
+
+/** Class codes are 6 letters and digits; spaces and dashes are ignored. */
+export const cleanClassCode = (code) => String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+export const createClass = ({ name, level, hours }) => rpc('arcade_create_class', { p_name: name, p_level: level, p_hours: hours });
+export const getClass = (code) => rpc('arcade_class', { p_code: cleanClassCode(code) });
+export const submitClassGame = (code, answers) => rpc('arcade_class_submit', { p_code: cleanClassCode(code), p_answers: answers });
+export const closeClass = (code, closed = true) => rpc('arcade_close_class', { p_code: code, p_closed: closed });
+export const hideClassResult = (code, name, hidden = true) => rpc('arcade_class_hide_result', { p_code: code, p_name: name, p_hidden: hidden });
+
+export async function myClasses() {
+  const rows = await rpc('arcade_my_classes', {});
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function classBoard(code) {
+  const rows = await rpc('arcade_class_board', { p_code: cleanClassCode(code), p_limit: 300 });
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    rank: r.rank, name: String(r.name), score: Number(r.score), accuracy: Number(r.accuracy),
+    bestStreak: Number(r.best_streak), at: r.played_at, isMe: Boolean(r.is_me),
+  }));
+}
+
+/** Round by round: { round, id, played, lineFound, clean, topWrong, topWrongCount }. */
+export async function classDebrief(code) {
+  const rows = await rpc('arcade_class_debrief', { p_code: cleanClassCode(code) });
+  return (Array.isArray(rows) ? rows : []).map((r) => ({
+    round: r.round_no, id: r.id, played: Number(r.played), lineFound: Number(r.line_found), clean: Number(r.clean),
+    topWrong: r.top_wrong, topWrongCount: Number(r.top_wrong_count || 0),
+  }));
+}
+
+export const classTopic = (code) => `arcade:class:${cleanClassCode(code)}`;
+
+// ---------- moderation (LureLens moderators) ----------
+
+export const isModerator = () => rpc('is_moderator', {}).then(Boolean);
+export async function modScores({ view = 'recent', search = '' } = {}) {
+  const rows = await rpc('arcade_mod_scores', { p_game: ONLINE.game, p_view: view, p_search: search || null, p_limit: 150 });
+  return Array.isArray(rows) ? rows : [];
+}
+export async function modList(kind, search = '') {
+  const rows = await rpc('arcade_mod_list', { p_kind: kind, p_search: search || null, p_limit: 150 });
+  return Array.isArray(rows) ? rows : [];
+}
+export const modSetHidden = (kind, id, hidden, reason) => rpc('arcade_mod_set_hidden', { p_kind: kind, p_id: id, p_hidden: hidden, p_reason: reason || null });
+export const modSetPlayerHidden = (playerId, hidden, reason) => rpc('moderate_player', { p_player: playerId, p_hidden: hidden, p_reason: reason || null });
+export async function modHistory() {
+  const rows = await rpc('arcade_mod_history', { p_limit: 150 });
+  return Array.isArray(rows) ? rows : [];
+}

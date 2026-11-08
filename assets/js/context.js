@@ -14,6 +14,9 @@ export const ctx = {
   returnTo: null,                       // where Account sends the player back to after signing in
   go: () => {},                         // set by app.js: go(view, options)
   view: null,
+  classCode: null,                      // the class page being shown (?class=CODE)
+  liveClass: null,                      // a class on the big screen (?live&class=CODE)
+  certRef: null,                        // the certificate being checked (?cert=REF)
 };
 
 // Posting online: the public board, or a team board whose link checked out.

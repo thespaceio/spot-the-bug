@@ -8,6 +8,15 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.6.0
+
+- **Accounts, shared with LureLens:** sign in with an email code, or **quick join** with just a username and no email. It's the same account as LureLens (same Supabase project), and signing in to either game on this site signs you in to both.
+- **Posting needs an account**, so nobody can post under someone else's name. Guests still play, and every game is saved on their device.
+- **Live scoreboard page:** this week or all time, by level, with a podium for the top three, a "This device" tab, and live updates as games are posted.
+- **Top players this week** on the home screen, and a **big screen view** for projectors (`?live`, or `?live&team=…&key=…` for a team) with a join QR code.
+- **New home screen:** rotating headline slides, headings that appear word by word, cards that rise in, buttons that respond to presses, screens that slide in. Everything stays still for players who ask for reduced motion.
+- **Account and Privacy pages**, an About page, a menu, and a tab bar on phones. Works from 320px phones to wide screens.
+
 ## What's new in v0.5.0
 
 - **Online scoreboard:** everyone's best score per level, shared across devices. The server re-scores every posted game, so totals can't be faked from the browser. See [Online scoreboard](#online-scoreboard).
@@ -56,14 +65,21 @@ The `Validate snippets` workflow runs `npm test` on every push and pull request,
 ## File structure
 
 ```
-index.html                    single page: home, round and results screens
+index.html                    the page shell: header, menu, footer
 assets/css/styles.css         brand tokens and layout
 assets/img/mark.svg           logo mark and favicon
 assets/js/config.js           levels, timers, scoring numbers
 assets/js/engine.js           pure game logic (no DOM): rounds, options, scoring, summary
 assets/js/highlight.js        safe syntax highlighting (textContent only)
-assets/js/storage.js          OnlineBoard (Supabase) and LocalScoreStore (this device)
-assets/js/app.js              UI and round flow
+assets/js/storage.js          this device: scoreboard, game history, settings
+assets/js/app.js              app shell: menu, screens, links, back button, start-up
+assets/js/context.js          state shared between screens
+assets/js/dom.js              DOM helpers, icons, motion (word reveals, count-up)
+assets/js/supa.js             loads the Supabase client on demand
+assets/js/auth.js             sign-in: email code, quick join, profile (shared with LureLens)
+assets/js/online.js           online scoreboard calls and live updates
+assets/js/views/*.js          one file per screen: home, round, results, scoreboard, account, about, privacy, live
+assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
 data/categories.json          the 10 vulnerability types, mapped to OWASP Top 10:2025
 data/snippets/*.json          snippet packs
@@ -153,16 +169,26 @@ The shared board lives in the **LureLens** Supabase project (organization **Th3 
 
 How it stays honest:
 
-- The browser can call only three database functions: `arcade_team`, `arcade_leaderboard` and `arcade_submit_spot_the_bug`. The tables themselves can't be read or written through the API.
+- Posting needs an account: email code or quick join. Accounts, usernames and profiles are LureLens's (`auth.users`, `public.profiles`, `save_profile`, `delete_my_account`), so one username works in both games. Deleting an account deletes its Spot the Bug scores too, and a player a LureLens moderator hides is hidden here as well.
+- The browser can call only three Spot the Bug database functions: `arcade_team`, `arcade_leaderboard` and `arcade_submit_spot_the_bug` (signed-in players only). The tables themselves can't be read or written through the API.
 - A posted game sends the answers (snippet, line, flaw type, time left), not a score. The server re-scores it against its own answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
-- Each game must have 10 different snippets from the right level. Names are cleaned (1 to 24 characters, no control or direction characters).
-- Flood limits: 30 games per network every 10 minutes on the public board, 300 per team every 10 minutes, 120 games per minute overall. Networks are recorded only as a keyed hash.
+- Each game must have 10 different snippets from the right level. Games are filed under the account's username; a name sent by the browser is ignored.
+- Flood limits: 10 games per account every 10 minutes, 300 per team every 10 minutes, 120 games per minute overall. No network addresses are stored.
+- New public games send a tiny live signal (just the level) on the public realtime channel `arcade:spot-the-bug`, and open boards reload. Networks that block live connections refresh every minute instead.
 - If the board can't be reached, the score is saved on the device and the player can try again.
 
 Known limits, fine for now:
 
-- There are no accounts yet, so anyone can post under any name. Sign in can be added the way LureLens does it once the th3spaceio.community email domain is ready.
 - The time left on each round is reported by the browser, so a determined player could inflate the speed bonus (at most 50 points a round before the level multiplier). Line and flaw type can't be faked.
+
+### Two settings to check in the Supabase dashboard
+
+Both are in **Authentication** for the LureLens project:
+
+1. **URL Configuration → Redirect URLs:** add `https://thespaceio.github.io/spot-the-bug/**`. Without it, the link in a sign-in email opens LureLens instead of Spot the Bug. (The 6-digit code works either way, and because both games share the sign-in on this site, the player is signed in to both.)
+2. **Emails → Magic Link** template: the subject and text currently say LureLens. Something like "Your Th3 SpaceIO sign-in code" fits both games.
+
+Email codes only reach players once the custom email sender (SMTP) is set up for the th3spaceio.community domain. Until then, quick join works for everyone.
 
 ### Hide a name or score
 
@@ -173,7 +199,8 @@ In the Supabase SQL editor:
 select id, name, level, score, created_at from arcade.scores order by created_at desc limit 50;
 -- hide one game, or every game under a name
 update arcade.scores set hidden = true where id = 'PASTE-ID';
-update arcade.scores set hidden = true where lower(name) = lower('Offensive Name');
+-- to hide a player everywhere (LureLens too), hide their profile instead:
+update public.profiles set hidden = true where lower(username) = lower('Offensive Name');
 ```
 
 ## Team licences
@@ -184,7 +211,7 @@ Each licensed company or bootcamp gets a private board, opened with a link like:
 https://thespaceio.github.io/spot-the-bug/?team=acme-bank&key=SECRETKEY
 ```
 
-Players who open the link see the team's name at the top, and their scores go to that team's board only. Without the key nobody can read or post to the board. A wrong or expired link shows a clear message and lets people keep playing, saving on their device only.
+Players who open the link see the team's name at the top, and their scores go to that team's board only. Like the public board, posting needs an account (email code or quick join). Without the key nobody can read or post to the board. A wrong or expired link shows a clear message and lets people keep playing, saving on their device only.
 
 Create a team in the Supabase SQL editor:
 

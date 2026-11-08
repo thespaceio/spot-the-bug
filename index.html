@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Spot the Bug · Th3 SpaceIO</title>
   <meta name="description" content="Spot the Bug is a timed secure coding game by Th3 SpaceIO. Find the vulnerable line, name the flaw, learn the fix.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://rxyhvpdbfuboukqgbych.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://rxyhvpdbfuboukqgbych.supabase.co wss://rxyhvpdbfuboukqgbych.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#0A1628">
   <meta property="og:title" content="Spot the Bug · Th3 SpaceIO">
@@ -28,23 +28,22 @@
           <span class="brand-by">by TH3 SPACEIO</span>
         </span>
       </a>
-      <div class="topbar-right">
-        <span id="team-badge" class="team-badge" hidden></span>
-        <a class="sister-link" href="https://thespaceio.github.io/LureLens/" rel="noopener">Play LureLens</a>
-      </div>
+      <nav id="nav" class="nav" aria-label="Main"></nav>
+      <span id="team-badge" class="team-badge" hidden></span>
     </div>
   </header>
 
-  <main id="app" class="wrap" tabindex="-1">
-    <section id="screen-home" class="screen" aria-labelledby="home-title"></section>
-    <section id="screen-round" class="screen" aria-label="Current round" hidden></section>
-    <section id="screen-results" class="screen" aria-labelledby="results-title" hidden></section>
-  </main>
+  <main id="app" class="wrap" tabindex="-1"></main>
 
   <footer class="footer">
     <div class="wrap footer-inner">
       <span class="footer-brand">TH3 SPACEIO</span>
       <span class="footer-tagline">LEARN. BUILD. SECURE.</span>
+      <span class="footer-links">
+        <a href="?about" data-go="about">About</a>
+        <a href="?privacy" data-go="privacy">Privacy</a>
+        <a href="https://thespaceio.github.io/LureLens/" rel="noopener">Play LureLens</a>
+      </span>
       <span class="footer-meta"><span id="app-version"></span> · All snippets are original training code. Don't deploy them.</span>
     </div>
   </footer>

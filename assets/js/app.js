@@ -1,646 +1,126 @@
-// UI and round flow. All text from snippet data goes in through textContent.
-import { APP, LEVELS, ROUNDS_PER_GAME, SCORING } from './config.js';
-import { loadContent, countByLevel, buildGame, scoreRound, summarise } from './engine.js';
-import { highlightLine, LANGUAGE_LABEL } from './highlight.js';
-import { OnlineBoard, LocalScoreStore, readTeam, cleanName } from './storage.js';
-import { isGameNight, nextGameNightLabel, GAME_NIGHT_URL } from './gamenight.js';
+// App shell: menu, screens, links (?live, ?privacy, ?account, ?scoreboard,
+// ?about), the back button, and start-up. Each screen lives in views/.
+import { APP } from './config.js';
+import { loadContent } from './engine.js';
+import { $, $$, h, icon } from './dom.js';
+import { ctx } from './context.js';
+import { auth, isReady, onAuthChange, startAuth } from './auth.js';
+import { checkTeam, onlineEnabled } from './online.js';
+import { renderHome } from './views/home.js';
+import { renderRound, confirmLeave } from './views/round.js';
+import { renderResults } from './views/results.js';
+import { renderScoreboard } from './views/scoreboard.js';
+import { renderAccount } from './views/account.js';
+import { renderAbout } from './views/about.js';
+import { renderPrivacy } from './views/privacy.js';
+import { renderLive } from './views/live.js';
 
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const VIEWS = {
+  home: renderHome,
+  round: renderRound,
+  results: renderResults,
+  scoreboard: renderScoreboard,
+  account: renderAccount,
+  about: renderAbout,
+  privacy: renderPrivacy,
+  live: renderLive,
+};
+// Screens that have their own link (?scoreboard and so on).
+const LINKED = ['scoreboard', 'account', 'about', 'privacy', 'live'];
 
-function h(tag, props, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(props || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'text') el.textContent = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, String(v));
-  }
-  for (const c of children.flat()) {
-    if (c == null || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return el;
+const NAV = [
+  { id: 'home', label: 'Play', short: 'Play', icon: 'play' },
+  { id: 'scoreboard', label: 'Scoreboard', short: 'Scores', icon: 'trophy' },
+  { id: 'about', label: 'About', short: 'About', icon: 'info' },
+  { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
+];
+const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about' };
+
+let cleanup = null;
+
+function teamQuery() {
+  return ctx.team ? `team=${encodeURIComponent(ctx.team.slug)}${ctx.team.key ? `&key=${encodeURIComponent(ctx.team.key)}` : ''}` : '';
 }
 
-const team = readTeam();                 // { slug, key } from a team link, or null
-const online = new OnlineBoard({ team });
-const local = new LocalScoreStore({ team });
-const teamStatus = { info: null, error: null };   // filled in at boot
+function urlFor(view) {
+  const parts = [LINKED.includes(view) ? view : '', teamQuery()].filter(Boolean);
+  return `${location.pathname}${parts.length ? `?${parts.join('&')}` : ''}`;
+}
 
-// Online posting is allowed on the public board, or on a team board whose link checked out.
-const canUseOnline = () => online.enabled && (!team || Boolean(teamStatus.info));
-const boardName = () => (teamStatus.info ? `${teamStatus.info.name} team board` : 'online scoreboard');
-// Public games open on Fridays (Game Night). Licensed teams train any day, but only
-// with a team link that checked out, so a made-up ?team= can't open public play.
-const isOpen = () => Boolean(teamStatus.info) || isGameNight();
+function viewFromUrl() {
+  const params = new URLSearchParams(location.search);
+  return LINKED.find((v) => params.has(v)) || 'home';
+}
 
-const state = {
-  content: null,
-  level: null,
-  rounds: [],
-  i: 0,
-  results: [],
-  answers: [],
-  score: 0,
-  streak: 0,
-  pickedLine: null,
-  pickedType: null,
-  phase: 'idle',
-  timer: null,
-  deadline: 0,
-  boardLevel: 'beginner',
-};
+function go(view, opts = {}, { push = true } = {}) {
+  if (!VIEWS[view]) view = 'home';
+  if (ctx.view === 'round' && view !== 'round' && !confirmLeave()) return false;
+  const previous = cleanup;
+  cleanup = null;
+  ctx.view = view;
+  try { previous?.(); } catch (err) { console.error(err); }
 
-const screens = {
-  home: $('#screen-home'),
-  round: $('#screen-round'),
-  results: $('#screen-results'),
-};
-
-function show(name) {
-  for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+  const root = $('#app');
+  document.body.dataset.view = view;
+  const screen = h('div', { class: 'screen screen-in' });
+  root.replaceChildren(screen);
+  try {
+    cleanup = VIEWS[view](screen, opts) || null;
+  } catch (err) {
+    console.error(err);
+    screen.replaceChildren(h('div', { class: 'panel card error' }, h('h1', { text: 'Something went wrong.' }), h('p', { text: 'Reload the page to try again.' })));
+  }
+  updateNav();
+  const url = urlFor(view);
+  if (push) history.pushState({ view }, '', url);
+  // Keep the #fragment on a replace: a sign-in link carries its token there,
+  // and Supabase reads (then clears) it once sign-in has loaded.
+  else history.replaceState({ view }, '', url + location.hash);
   window.scrollTo({ top: 0, behavior: 'instant' });
-  const heading = $('h1, h2', screens[name]);
-  if (heading) {
+  const heading = $('h1, h2', screen);
+  if (heading && view !== 'round') {
     heading.setAttribute('tabindex', '-1');
     heading.focus({ preventScroll: true });
   }
+  return true;
 }
 
-function category(id) {
-  return state.content.categories.get(id) || { id, name: id, owasp: '', cwe: '', summary: '' };
-}
-
-// ---------- Home ----------
-
-function renderHome() {
-  stopTimer();
-  state.phase = 'idle';
-  const counts = countByLevel(state.content.snippets);
-
-  const levelCards = Object.values(LEVELS).map((lvl) => {
-    const n = counts[lvl.id] || 0;
-    const rounds = Math.min(n, ROUNDS_PER_GAME);
-    return h('article', { class: `level-card${n ? '' : ' is-locked'}` },
-      h('div', { class: 'level-head' },
-        h('h3', { text: lvl.label }),
-        h('span', { class: 'level-mult', text: `×${lvl.multiplier}` })),
-      h('p', { class: 'level-blurb', text: lvl.blurb }),
-      h('ul', { class: 'level-facts' },
-        h('li', {}, h('strong', { text: n }), n === 1 ? ' snippet' : ' snippets'),
-        h('li', {}, h('strong', { text: `${lvl.seconds}s` }), ' per round'),
-        h('li', {}, h('strong', { text: lvl.options }), ' answer choices')),
-      n && !isOpen()
-        ? h('button', { class: 'btn btn-ghost', type: 'button', disabled: true, text: 'Opens on Friday' })
-        : n
-        ? h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id) },
-            `Start ${lvl.label}`, h('span', { class: 'btn-sub', text: ` · ${rounds} rounds` }))
-        : h('button', { class: 'btn btn-ghost', type: 'button', disabled: true, text: 'Coming soon' }));
-  });
-
-  const scoringRows = [
-    ['Right line', `+${SCORING.line}`],
-    ['Right type', `+${SCORING.type}`],
-    ['Speed bonus', `up to +${SCORING.speedMax}`],
-    ['Streak bonus', `+${SCORING.streakStep} per clean round in a row, up to +${SCORING.streakCap}`],
-    ['Level multiplier', Object.values(LEVELS).map((l) => `×${l.multiplier}`).join(', ')],
-  ];
-
-  screens.home.replaceChildren(
-    teamStatus.error ? h('div', { class: 'notice', role: 'status' },
-      h('p', { class: 'notice-title', text: "This team link didn't work" }),
-      h('p', { text: `${teamStatus.error} You can still play; scores will be saved on this device only.` })) : null,
-    h('div', { class: 'hero' },
-      h('p', { class: 'eyebrow', text: 'SPACEIO // SECURE CODE' }),
-      h('h1', { id: 'home-title', text: 'Find the vulnerable line before the clock does.' }),
-      h('p', { class: 'lead', text: 'Every round is a short piece of backend code with one security flaw. Click the line, name the flaw, then see exactly why it breaks and how to fix it.' }),
-      h('ul', { class: 'chips', 'aria-label': 'What the game covers' },
-        h('li', { text: 'JavaScript · Python · PHP' }),
-        h('li', { text: 'OWASP Top 10:2025' }),
-        h('li', { text: `${ROUNDS_PER_GAME} timed rounds` }))),
-    isOpen() ? null : h('section', { class: 'gamenight-closed', id: 'game-night-closed', role: 'status' },
-      h('h2', { text: 'Public games open on Fridays' }),
-      h('p', {}, 'The next Game Night is ', h('strong', { text: nextGameNightLabel() }),
-        '. Games open from midnight to midnight West Africa Time, and the Th3 SpaceIO community plays together live at 6pm.'),
-      h('p', { class: 'muted', text: 'Running staff training or a class? Team boards work any day. Your scoreboard stays open too.' }),
-      h('a', { class: 'btn btn-primary', href: GAME_NIGHT_URL, rel: 'noopener', text: 'Join Game Night' })),
-    h('h2', { class: 'section-title', text: 'Choose your level' }),
-    h('div', { class: 'levels' }, levelCards),
-    h('div', { class: 'home-grid' },
-      h('section', { class: 'panel' },
-        h('h2', { text: 'How a round works' }),
-        h('ol', { class: 'steps' },
-          h('li', {}, h('strong', { text: 'Spot. ' }), 'Click the line you believe is vulnerable.'),
-          h('li', {}, h('strong', { text: 'Name. ' }), 'Pick the type of flaw from the list.'),
-          h('li', {}, h('strong', { text: 'Learn. ' }), 'Read what goes wrong and compare the vulnerable code with the fixed version.'))),
-      h('section', { class: 'panel' },
-        h('h2', { text: 'Scoring' }),
-        h('dl', { class: 'score-table' },
-          scoringRows.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: v })))))),
-    renderBoardSection());
-}
-
-function renderBoardSection() {
-  const section = h('section', { class: 'panel board', 'aria-labelledby': 'board-title' });
-  const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Scoreboard level' });
-  const body = h('div', { class: 'board-body', role: 'tabpanel' });
-  for (const lvl of Object.values(LEVELS)) {
-    tabs.append(h('button', {
-      class: 'tab', type: 'button', role: 'tab', 'data-level': lvl.id,
-      'aria-selected': String(lvl.id === state.boardLevel),
-      onclick: () => {
-        state.boardLevel = lvl.id;
-        $$('.tab', tabs).forEach((t) => t.setAttribute('aria-selected', String(t.dataset.level === lvl.id)));
-        fillBoard(body, lvl.id);
-      },
-      text: lvl.label,
-    }));
-  }
-  const title = teamStatus.info ? `Team board · ${teamStatus.info.name}` : team ? 'Scoreboard' : 'Online scoreboard';
-  const subtitle = teamStatus.info
-    ? 'Private to your team. Best score per player.'
-    : team ? 'Saved on this device.' : "Everyone's best score at each level.";
-  section.append(
-    h('div', { class: 'board-head' },
-      h('h2', { id: 'board-title', text: title }),
-      h('p', { class: 'muted', text: subtitle })),
-    tabs, body);
-  fillBoard(body, state.boardLevel);
-  return section;
-}
-
-let boardRequest = 0;
-
-// Shows the online board, or this device's scores when the online board can't be used.
-async function fillBoard(container, levelId, highlightName = null) {
-  const request = ++boardRequest;
-  container.dataset.request = String(request);
-  container.replaceChildren(h('p', { class: 'empty', text: 'Loading scores…' }));
-  let rows;
-  let note = null;
-  if (canUseOnline()) {
-    try {
-      rows = await online.list(levelId);
-    } catch (err) {
-      note = `${err.message} Showing scores saved on this device.`;
-    }
-  }
-  if (!rows) rows = await local.list(levelId);
-  if (container.dataset.request !== String(request)) return;  // a newer tab click won
-
-  const parts = [];
-  if (note) parts.push(h('p', { class: 'board-note', role: 'status', text: note }));
-  if (!rows.length) {
-    parts.push(h('p', { class: 'empty', text: `No ${LEVELS[levelId].label} scores yet. Be the first on the board.` }));
-    container.replaceChildren(...parts);
-    return;
-  }
-  const you = highlightName ? highlightName.toLowerCase() : null;
-  const fmt = new Intl.DateTimeFormat('en-NG', { day: 'numeric', month: 'short' });
-  parts.push(h('table', { class: 'board-table' },
-    h('thead', {}, h('tr', {},
-      h('th', { scope: 'col', text: '#' }), h('th', { scope: 'col', text: 'Player' }),
-      h('th', { scope: 'col', class: 'num', text: 'Score' }), h('th', { scope: 'col', class: 'num', text: 'Accuracy' }),
-      h('th', { scope: 'col', class: 'num hide-sm', text: 'Streak' }), h('th', { scope: 'col', class: 'num hide-sm', text: 'Date' }))),
-    h('tbody', {}, rows.map((r, idx) => h('tr', { class: you && r.name.toLowerCase() === you ? 'is-you' : null },
-      h('td', { text: r.rank ?? idx + 1 }), h('td', { class: 'name', text: r.name }),
-      h('td', { class: 'num strong', text: r.score.toLocaleString('en-NG') }),
-      h('td', { class: 'num', text: `${r.accuracy}%` }),
-      h('td', { class: 'num hide-sm', text: r.bestStreak }),
-      h('td', { class: 'num hide-sm', text: r.at ? fmt.format(new Date(r.at)) : '' }))))));
-  container.replaceChildren(...parts);
-}
-
-// ---------- Round ----------
-
-function startGame(levelId) {
-  if (!isOpen()) { renderHome(); return; }
-  const level = LEVELS[levelId];
-  state.level = level;
-  state.rounds = buildGame({
-    snippets: state.content.snippets,
-    categories: state.content.categories,
-    level,
-    rounds: ROUNDS_PER_GAME,
-  });
-  state.i = 0;
-  state.results = [];
-  state.answers = [];
-  state.score = 0;
-  state.streak = 0;
-  show('round');
-  renderRound();
-}
-
-function hud() {
-  const total = state.rounds.length;
-  return h('div', { class: 'hud' },
-    h('div', { class: 'hud-stats' },
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Level' }), h('span', { class: 'hud-value', text: state.level.label })),
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Round' }), h('span', { class: 'hud-value', text: `${state.i + 1} / ${total}` })),
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Score' }), h('span', { class: 'hud-value', id: 'hud-score', text: state.score.toLocaleString('en-NG') })),
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Streak' }), h('span', { class: 'hud-value', id: 'hud-streak', text: `×${state.streak}` }))),
-    h('div', { class: 'timer', role: 'timer', 'aria-label': 'Time left' },
-      h('span', { class: 'timer-num', id: 'timer-num', text: state.level.seconds }),
-      h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
-    h('button', { class: 'btn btn-quiet', type: 'button', onclick: quitGame, text: 'Quit' }));
-}
-
-function renderRound() {
-  const round = state.rounds[state.i];
-  const s = round.snippet;
-  state.pickedLine = null;
-  state.pickedType = null;
-  state.phase = 'answer';
-
-  const code = h('div', { class: 'code', id: 'code', role: 'group', 'aria-label': 'Code. Select the vulnerable line.' });
-  s.code.forEach((text, idx) => {
-    const n = idx + 1;
-    const blank = text.trim() === '';
-    code.append(h('button', {
-      class: 'line', type: 'button', 'data-line': n, 'aria-pressed': 'false',
-      disabled: blank, tabindex: blank ? '-1' : null,
-      onclick: () => selectLine(n),
-    },
-    h('span', { class: 'ln', 'aria-hidden': 'true', text: n }),
-    h('span', { class: 'lc' }, highlightLine(text || ' ', s.language)),
-    h('span', { class: 'line-tag', 'aria-hidden': 'true' })));
-  });
-  code.addEventListener('keydown', onCodeKeys);
-
-  const optionKeys = round.options.length > 9 ? '1 to 0' : `1 to ${round.options.length}`;
-  const options = h('div', { class: 'options', role: 'group', 'aria-label': 'Vulnerability type' },
-    round.options.map((id, idx) => h('button', {
-      class: 'option', type: 'button', 'data-type': id, 'aria-pressed': 'false',
-      onclick: () => selectType(id),
-    },
-    h('span', { class: 'key', 'aria-hidden': 'true', text: (idx + 1) % 10 }),
-    h('span', { class: 'opt-name', text: category(id).name }))));
-
-  screens.round.replaceChildren(
-    hud(),
-    h('div', { class: 'snippet-head' },
-      h('div', { class: 'badges' },
-        h('span', { class: 'badge', text: LANGUAGE_LABEL[s.language] || s.language }),
-        s.framework && s.framework !== LANGUAGE_LABEL[s.language] ? h('span', { class: 'badge', text: s.framework }) : null,
-        h('span', { class: 'badge badge-quiet', text: s.id })),
-      h('h2', { id: 'round-title', text: s.title }),
-      h('p', { class: 'context', text: s.context })),
-    h('div', { class: 'round-grid' },
-      h('div', { class: 'code-panel' },
-        h('div', { class: 'panel-bar' },
-          h('span', { class: 'dot' }), h('span', { text: `${s.code.length} lines` }),
-          h('span', { class: 'panel-bar-hint', text: 'Click the vulnerable line' })),
-        code),
-      h('aside', { class: 'answer-panel', id: 'answer' },
-        h('div', { class: 'step' },
-          h('h3', {}, h('span', { class: 'step-num', text: '1' }), 'Find the line'),
-          h('p', { class: 'line-status', id: 'line-status', 'aria-live': 'polite', text: 'No line selected yet.' })),
-        h('div', { class: 'step' },
-          h('h3', {}, h('span', { class: 'step-num', text: '2' }), 'Name the flaw'),
-          options),
-        h('button', { class: 'btn btn-primary btn-block', id: 'lock', type: 'button', disabled: true, onclick: () => lockIn(false), text: 'Lock in answer' }),
-        h('p', { class: 'keys', text: `Keys: ↑ ↓ move between lines, Enter selects, ${optionKeys} picks a type, L locks in.` }))),
-    h('div', { id: 'reveal', class: 'reveal' }));
-
-  startTimer();
-  const first = $('.line:not([disabled])', code);
-  if (first) first.focus({ preventScroll: true });
-}
-
-function onCodeKeys(e) {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-  const lines = $$('.line:not([disabled])', e.currentTarget);
-  const at = lines.indexOf(document.activeElement);
-  if (at === -1) return;
-  e.preventDefault();
-  const next = lines[Math.max(0, Math.min(lines.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
-  next.focus();
-}
-
-function selectLine(n) {
-  if (state.phase !== 'answer') return;
-  state.pickedLine = n;
-  $$('#code .line').forEach((el) => el.setAttribute('aria-pressed', String(Number(el.dataset.line) === n)));
-  $('#line-status').textContent = `Line ${n} selected.`;
-  $('#line-status').classList.add('is-set');
-  updateLock();
-}
-
-function selectType(id) {
-  if (state.phase !== 'answer') return;
-  state.pickedType = id;
-  $$('.option').forEach((el) => el.setAttribute('aria-pressed', String(el.dataset.type === id)));
-  updateLock();
-}
-
-function updateLock() {
-  $('#lock').disabled = !(state.pickedLine && state.pickedType);
-}
-
-function startTimer() {
-  stopTimer();
-  const totalMs = state.level.seconds * 1000;
-  state.deadline = performance.now() + totalMs;
-  const bar = $('#timer-bar');
-  const num = $('#timer-num');
-  const timerEl = $('.timer');
-  const tick = () => {
-    const left = Math.max(0, state.deadline - performance.now());
-    bar.style.setProperty('--p', String(left / totalMs));
-    num.textContent = String(Math.ceil(left / 1000));
-    timerEl.classList.toggle('is-low', left <= 10000);
-    if (left <= 0) lockIn(true);
-  };
-  tick();
-  state.timer = setInterval(tick, 100);
-}
-
-function stopTimer() {
-  if (state.timer) clearInterval(state.timer);
-  state.timer = null;
-}
-
-function secondsLeft() {
-  return Math.max(0, (state.deadline - performance.now()) / 1000);
-}
-
-function lockIn(timedOut) {
-  if (state.phase !== 'answer') return;
-  if (!timedOut && !(state.pickedLine && state.pickedType)) return;
-  state.phase = 'reveal';
-  const left = timedOut ? 0 : secondsLeft();
-  stopTimer();
-
-  const round = state.rounds[state.i];
-  const s = round.snippet;
-  const score = scoreRound({
-    snippet: s,
-    pickedLine: state.pickedLine,
-    pickedType: state.pickedType,
-    secondsLeft: left,
-    totalSeconds: state.level.seconds,
-    streak: state.streak,
-    multiplier: state.level.multiplier,
-  });
-  state.streak = score.newStreak;
-  state.score += score.points;
-  state.results.push({ snippet: s, pickedLine: state.pickedLine, pickedType: state.pickedType, timedOut, score });
-  // What the online scoreboard needs to re-score this round on the server.
-  state.answers.push({ id: s.id, line: state.pickedLine ?? null, type: state.pickedType ?? null, left: score.tenthsLeft });
-
-  $('#hud-score').textContent = state.score.toLocaleString('en-NG');
-  $('#hud-streak').textContent = `×${state.streak}`;
-  if (timedOut) {
-    $('#timer-num').textContent = '0';
-    $('#timer-bar').style.setProperty('--p', '0');
-  }
-
-  markLines(s, score);
-  markOptions(s);
-  renderVerdict(s, score, timedOut);
-  renderReveal(s);
-}
-
-function markLines(s, score) {
-  const accept = new Set(s.acceptLines || []);
-  for (const el of $$('#code .line')) {
-    const n = Number(el.dataset.line);
-    el.disabled = true;
-    const tag = $('.line-tag', el);
-    if (n === s.vulnerableLine) {
-      el.classList.add('is-vuln');
-      tag.textContent = 'Vulnerable';
-    } else if (accept.has(n)) {
-      el.classList.add('is-related');
-    }
-    if (n === state.pickedLine) {
-      el.classList.add(score.lineCorrect ? 'is-found' : 'is-wrong');
-      tag.textContent = score.lineCorrect ? (n === s.vulnerableLine ? 'Vulnerable · your pick' : 'Accepted · your pick') : 'Your pick';
-    }
-  }
-  $('.panel-bar-hint').textContent = 'Answer revealed';
-}
-
-function markOptions(s) {
-  for (const el of $$('.option')) {
-    el.disabled = true;
-    if (el.dataset.type === s.category) el.classList.add('is-correct');
-    else if (el.dataset.type === state.pickedType) el.classList.add('is-wrong');
-  }
-}
-
-function verdictFor(score, timedOut) {
-  if (score.clean) return { cls: 'win', title: 'Clean find', note: 'Right line and right flaw.' };
-  if (timedOut && !state.pickedLine && !state.pickedType) return { cls: 'miss', title: "Time's up", note: 'No answer was locked in.' };
-  if (score.lineCorrect) return { cls: 'partial', title: 'Right line, wrong flaw', note: 'You found it. Check how the flaw is classified.' };
-  if (score.typeCorrect) return { cls: 'partial', title: 'Right flaw, wrong line', note: 'You knew what to look for. The highlighted line is where it happens.' };
-  return { cls: 'miss', title: timedOut ? "Time's up" : 'Missed it', note: 'Study the highlighted line and the fix below.' };
-}
-
-function renderVerdict(s, score, timedOut) {
-  const v = verdictFor(score, timedOut);
-  const cat = category(s.category);
-  const b = score.breakdown;
-  const rows = [
-    ['Line', b.line], ['Flaw type', b.type], ['Speed', b.speed], ['Streak', b.streak],
-  ];
-  const isLast = state.i === state.rounds.length - 1;
-  $('#answer').replaceChildren(
-    h('div', { class: `verdict verdict-${v.cls}`, role: 'status' },
-      h('p', { class: 'verdict-title', text: v.title }),
-      h('p', { class: 'verdict-note', text: v.note })),
-    h('dl', { class: 'breakdown' },
-      rows.map(([k, val]) => h('div', { class: val ? 'has' : null }, h('dt', { text: k }), h('dd', { text: val ? `+${val}` : '0' }))),
-      score.multiplier !== 1 ? h('div', {}, h('dt', { text: 'Level multiplier' }), h('dd', { text: `×${score.multiplier}` })) : null,
-      h('div', { class: 'total' }, h('dt', { text: 'This round' }), h('dd', { text: `+${score.points}` }))),
-    h('div', { class: 'cat-card' },
-      h('p', { class: 'cat-label', text: 'The flaw' }),
-      h('p', { class: 'cat-name', text: cat.name }),
-      h('p', { class: 'cat-meta', text: [cat.owasp, cat.cwe].filter(Boolean).join(' · ') }),
-      h('p', { class: 'cat-summary', text: cat.summary })),
-    h('button', { class: 'btn btn-primary btn-block', id: 'next', type: 'button', onclick: nextRound, text: isLast ? 'See results' : 'Next round' }));
-  $('#next').focus({ preventScroll: true });
-}
-
-function staticCode(lines, language, marks, cls) {
-  return h('div', { class: 'code code-static' },
-    lines.map((text, idx) => h('div', { class: `line${marks.has(idx + 1) ? ` ${cls}` : ''}` },
-      h('span', { class: 'ln', 'aria-hidden': 'true', text: idx + 1 }),
-      h('span', { class: 'lc' }, highlightLine(text || ' ', language)))));
-}
-
-function renderReveal(s) {
-  const reveal = $('#reveal');
-  reveal.replaceChildren(
-    h('div', { class: 'explain panel' },
-      h('div', {},
-        h('h3', { text: "What's wrong" }),
-        h('p', { text: s.explanation })),
-      h('div', {},
-        h('h3', { text: 'The fix' }),
-        h('p', { text: s.fix.summary }))),
-    h('div', { class: 'compare' },
-      h('div', { class: 'code-panel' },
-        h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-red' }), h('span', { text: 'Vulnerable' })),
-        staticCode(s.code, s.language, new Set([s.vulnerableLine]), 'is-vuln')),
-      h('div', { class: 'code-panel' },
-        h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-green' }), h('span', { text: 'Fixed' })),
-        staticCode(s.fix.code, s.language, new Set(s.fix.changedLines || []), 'is-fixed'))));
-  if (matchMedia('(max-width: 900px)').matches) {
-    $('#answer').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-  }
-}
-
-function nextRound() {
-  if (state.i < state.rounds.length - 1) {
-    state.i += 1;
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    renderRound();
-  } else {
-    renderResults();
-  }
-}
-
-function quitGame() {
-  if (state.phase === 'answer' && !window.confirm('Quit this game? Your progress will be lost.')) return;
-  stopTimer();
-  renderHome();
-  show('home');
-}
-
-// ---------- Results ----------
-
-function renderResults() {
-  stopTimer();
-  state.phase = 'results';
-  const sum = summarise(state.results, state.content.categories);
-  const lvl = state.level;
-  const message = sum.accuracy >= 90 ? 'Sharp eyes. You read code like a reviewer.'
-    : sum.accuracy >= 60 ? 'Solid work. A few patterns to tighten up below.'
-      : 'Every miss is a pattern you will now recognise in real code. Review the focus areas and go again.';
-
-  const boardBody = h('div', { class: 'board-body' });
-  const msg = h('p', { class: 'save-msg', 'aria-live': 'polite' });
-  const input = h('input', {
-    id: 'player-name', name: 'player', type: 'text', maxlength: '24', autocomplete: 'nickname',
-    required: true, placeholder: 'e.g. Ada from Yaba', value: local.lastName(),
-  });
-  const postOnline = canUseOnline();
-  const saveBtn = h('button', { class: 'btn btn-primary', type: 'submit', text: postOnline ? 'Post score' : 'Save score' });
-  const answers = state.answers.slice();
-  let savedLocally = false;
-  const form = h('form', {
-    class: 'save-form',
-    onsubmit: async (e) => {
-      e.preventDefault();
-      const name = cleanName(input.value);
-      if (!name) { msg.textContent = 'Add a name for the board.'; msg.className = 'save-msg'; input.focus(); return; }
-      saveBtn.disabled = true;
-      input.disabled = true;
-      local.rememberName(name);
-      if (!savedLocally) {
-        await local.add({ name, score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id });
-        savedLocally = true;
-      }
-      if (!postOnline) {
-        msg.className = 'save-msg';
-        msg.textContent = 'Saved on this device.';
-        fillBoard(boardBody, lvl.id, name);
-        return;
-      }
-      msg.className = 'save-msg is-pending';
-      msg.textContent = `Posting to the ${boardName()}…`;
-      try {
-        const res = await online.submit({ name, level: lvl.id, answers });
-        const parts = [`Posted to the ${boardName()}.`];
-        if (res.rank && res.of) parts.push(`This game ranks number ${res.rank} of ${res.of} ${res.of === 1 ? 'player' : 'players'} at ${lvl.label}.`);
-        if (res.score !== sum.total) parts.push(`The scoreboard counted ${Number(res.score).toLocaleString('en-NG')} points.`);
-        if (res.personal_best > res.score) parts.push(`Your best of ${Number(res.personal_best).toLocaleString('en-NG')} still stands.`);
-        msg.className = 'save-msg';
-        msg.textContent = parts.join(' ');
-        fillBoard(boardBody, lvl.id, res.name || name);
-      } catch (err) {
-        msg.className = 'save-msg is-warning';
-        msg.textContent = `${err.message} Your score is saved on this device.`;
-        if (err.network) {
-          saveBtn.textContent = 'Try again';
-          saveBtn.disabled = false;
-          input.disabled = false;
-        }
-        fillBoard(boardBody, lvl.id, name);
-      }
-    },
-  },
-  h('label', { for: 'player-name', text: 'Name on the scoreboard' }),
-  h('div', { class: 'save-row' }, input, saveBtn),
-  h('p', { class: 'save-hint', text: postOnline
-    ? `Your name and score appear on the ${boardName()}. Don't use your full name if you'd rather stay private.`
-    : 'Saved on this device only.' }));
-
-  screens.results.replaceChildren(
-    h('div', { class: 'results-hero' },
-      h('p', { class: 'eyebrow', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${teamStatus.info ? ` · ${teamStatus.info.name.toUpperCase()}` : ''}` }),
-      h('h1', { id: 'results-title' }, h('span', { class: 'big-score', text: sum.total.toLocaleString('en-NG') }), ' points'),
-      h('p', { class: 'lead', text: message })),
-    h('div', { class: 'stats' },
-      stat('Clean finds', `${sum.clean} / ${sum.rounds}`),
-      stat('Lines found', `${sum.lines} / ${sum.rounds}`),
-      stat('Accuracy', `${sum.accuracy}%`),
-      stat('Best streak', String(sum.bestStreak))),
-    h('div', { class: 'results-grid' },
-      h('section', { class: 'panel' },
-        h('h2', { text: 'Focus areas' }),
-        sum.focus.length
-          ? h('ul', { class: 'focus-list' }, sum.focus.map((f) => h('li', {},
-              h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
-              h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }))))
-          : h('p', { class: 'muted', text: 'Nothing missed. Try the next level when it opens.' })),
-      h('section', { class: 'panel' },
-        h('h2', { text: postOnline ? 'Post your score' : 'Save your score' }),
-        form, msg, boardBody)),
-    h('section', { class: 'panel review' },
-      h('h2', { text: 'Round by round' }),
-      h('ol', { class: 'review-list' }, state.results.map((r) => {
-        const v = r.score.clean ? ['win', 'Clean'] : (r.score.lineCorrect || r.score.typeCorrect) ? ['partial', 'Partial'] : ['miss', 'Missed'];
-        return h('li', {},
-          h('span', { class: `pill pill-${v[0]}`, text: v[1] }),
-          h('span', { class: 'review-title', text: r.snippet.title }),
-          h('span', { class: 'review-cat', text: category(r.snippet.category).name }),
-          h('span', { class: 'review-pts', text: `+${r.score.points}` }));
-      }))),
-    h('div', { class: 'actions' },
-      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id), text: `Play ${lvl.label} again` }),
-      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { renderHome(); show('home'); }, text: 'Choose another level' })));
-
-  fillBoard(boardBody, lvl.id);
-  show('results');
-}
-
-function stat(label, value) {
-  return h('div', { class: 'stat' }, h('span', { class: 'stat-value', text: value }), h('span', { class: 'stat-label', text: label }));
-}
-
-// ---------- Keyboard shortcuts ----------
-
-document.addEventListener('keydown', (e) => {
-  if (state.phase !== 'answer' || e.altKey || e.ctrlKey || e.metaKey) return;
-  if (e.target instanceof HTMLInputElement) return;
-  const round = state.rounds[state.i];
-  if (/^[0-9]$/.test(e.key)) {
-    const idx = e.key === '0' ? 9 : Number(e.key) - 1;
-    if (round.options[idx]) { e.preventDefault(); selectType(round.options[idx]); }
-  } else if (e.key === 'l' || e.key === 'L') {
-    e.preventDefault();
-    lockIn(false);
-  }
+window.addEventListener('popstate', (e) => {
+  const view = e.state?.view || viewFromUrl();
+  if (view === ctx.view) return;
+  if (view === 'round') { go('home', {}, { push: false }); return; }       // a finished or left game can't be resumed
+  if (view === 'results' && !ctx.result) { go('home', {}, { push: false }); return; }
+  if (!go(view, {}, { push: false })) history.pushState({ view: ctx.view }, '', urlFor(ctx.view));   // stayed in the game
 });
 
-// ---------- Boot ----------
+// ---------- menu ----------
+
+function renderNav() {
+  $('#nav').replaceChildren(...NAV.map((item) => h('a', {
+    href: urlFor(item.id), class: 'nav-link', 'data-view': item.id,
+    onclick: (e) => { e.preventDefault(); go(item.id); },
+  }, icon(item.icon, 'icon nav-icon'), h('span', { class: 'nav-label', text: item.label }), h('span', { class: 'nav-short', text: item.short }))));
+  $('.brand').addEventListener('click', (e) => { e.preventDefault(); go('home'); });
+  for (const a of $$('[data-go]')) a.addEventListener('click', (e) => { e.preventDefault(); go(a.dataset.go); });
+}
+
+function updateNav() {
+  const active = NAV_FOR[ctx.view] || ctx.view;
+  for (const a of $$('#nav .nav-link')) {
+    if (a.dataset.view === active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
+  const account = $('#nav .nav-link[data-view="account"]');
+  if (account) {
+    const name = isReady() ? auth.profile.username : auth.status === 'signedIn' ? 'Account' : 'Sign in';
+    account.querySelector('.nav-label').textContent = name;
+    account.querySelector('.nav-short').textContent = isReady() ? 'You' : name;
+    account.title = isReady() ? `Signed in as ${auth.profile.username}` : '';
+    account.classList.toggle('is-signed-in', isReady());
+  }
+  account?.toggleAttribute('hidden', !onlineEnabled());
+}
+
+// ---------- start-up ----------
 
 async function fetchJson(url) {
   const res = await fetch(url, { cache: 'no-cache' });
@@ -649,30 +129,34 @@ async function fetchJson(url) {
 }
 
 async function checkTeamLink() {
-  if (!team) return;
-  const badge = $('#team-badge');
+  if (!ctx.team) return;
   try {
-    teamStatus.info = await online.checkTeam();
-    badge.textContent = `Team · ${teamStatus.info.name}`;
+    ctx.teamStatus.info = await checkTeam(ctx.team);
+    const badge = $('#team-badge');
+    badge.textContent = `Team · ${ctx.teamStatus.info.name}`;
     badge.hidden = false;
   } catch (err) {
-    teamStatus.error = err.message;
+    ctx.teamStatus.error = err.message;
   }
 }
 
 async function boot() {
   $('#app-version').textContent = `v${APP.version}`;
+  ctx.go = go;
+  renderNav();
+  updateNav();
+  onAuthChange(updateNav);
   try {
-    [state.content] = await Promise.all([loadContent(fetchJson), checkTeamLink()]);
-    renderHome();
-    show('home');
+    [ctx.content] = await Promise.all([loadContent(fetchJson), checkTeamLink()]);
   } catch (err) {
     console.error(err);
-    screens.home.replaceChildren(h('div', { class: 'panel error' },
+    $('#app').replaceChildren(h('div', { class: 'panel card error' },
       h('h1', { text: "The snippets didn't load." }),
       h('p', { text: 'If you opened index.html straight from your files, the browser blocks the data files. Start a local server in the project folder instead, for example: python3 -m http.server 8000, then open http://localhost:8000.' })));
-    show('home');
+    return;
   }
+  go(viewFromUrl(), {}, { push: false });
+  startAuth();   // loads sign-in in the background, after the first screen is up
 }
 
 boot();

@@ -2,7 +2,7 @@
 
 export const APP = {
   name: 'Spot the Bug',
-  version: '0.5.0',
+  version: '0.6.0',
   org: 'Th3 SpaceIO',
   tagline: 'LEARN. BUILD. SECURE.',
   sister: { name: 'LureLens', url: 'https://thespaceio.github.io/LureLens/' },
@@ -60,6 +60,14 @@ export const ONLINE = {
   url: 'https://rxyhvpdbfuboukqgbych.supabase.co',
   key: 'sb_publishable_v58sr6nGSPrgvUHMP8HVyw_SADkXbTk',
   game: 'spot-the-bug',
-  timeoutMs: 8000,
   boardSize: 10,
+  // Same key as LureLens on the same site, so one sign-in covers both games.
+  authStorageKey: 'lurelens-auth',
+  profileCacheKey: 'lurelens_profile_v1',
+  liveTopic: 'arcade:spot-the-bug',
 };
+
+// Public links and contacts.
+export const SITE_URL = 'https://thespaceio.github.io/spot-the-bug/';
+export const CONTACT_EMAIL = 'th3officialspaceio@gmail.com';
+export const REPO_URL = 'https://github.com/thespaceio/spot-the-bug';

@@ -1,0 +1,149 @@
+// End of game: score, focus areas, posting to the online board, round review.
+import { h, icon, fmt, countUp, revealText, fill } from '../dom.js';
+import { ctx, canPostOnline, boardName, category } from '../context.js';
+import { auth, isReady, onAuthChange } from '../auth.js';
+import { onlineEnabled, postGame, fetchBoard } from '../online.js';
+import { history } from '../storage.js';
+import { boardTable } from './board.js';
+import { startGame } from './round.js';
+
+export function renderResults(root) {
+  const r = ctx.result;
+  if (!r) { ctx.go('home'); return undefined; }
+  const sum = r.summary;
+  const lvl = r.level;
+
+  // Every finished game is kept on this device (scoreboard and Progress), once.
+  if (!r.saved) {
+    r.saved = true;
+    history.add({
+      id: r.id, level: lvl.id, date: r.date, score: sum.total, clean: sum.clean, lines: sum.lines,
+      rounds: sum.rounds, accuracy: sum.accuracy, bestStreak: sum.bestStreak,
+      team: ctx.teamStatus.info ? ctx.team.slug : null,
+      answers: r.results.map((x, i) => ({
+        id: x.snippet.id, category: x.snippet.category, line: x.pickedLine ?? null, type: x.pickedType ?? null,
+        left: r.answers[i]?.left ?? 0, lineOk: x.score.lineCorrect, typeOk: x.score.typeCorrect, points: x.score.points,
+      })),
+    });
+    ctx.local.add({
+      name: isReady() ? auth.profile.username : 'You',
+      score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id,
+    });
+  }
+
+  const message = sum.accuracy >= 90 ? 'Sharp eyes. You read code like a reviewer.'
+    : sum.accuracy >= 60 ? 'Solid work. A few patterns to tighten up below.'
+      : 'Every miss is a pattern you will now recognise in real code. Review the focus areas and go again.';
+
+  const scoreEl = h('span', { class: 'big-score', text: '0' });
+  const postPanel = h('section', { class: 'panel card post-panel', 'aria-labelledby': 'post-title' });
+  const renderPost = () => fill(postPanel, postContents(r));
+  renderPost();
+  const off = onAuthChange(() => { if (!r.posted) renderPost(); });
+
+  fill(root,
+    h('div', { class: 'results-hero' },
+      h('p', { class: 'eyebrow text-in', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
+      h('h1', { id: 'results-title' }, scoreEl, h('span', { class: 'big-score-unit' }, revealText(' points', 500))),
+      h('p', { class: 'lead text-in', style: { '--d': '400ms' }, text: message })),
+    h('div', { class: 'stats' },
+      stat('Clean finds', `${sum.clean} / ${sum.rounds}`, 0),
+      stat('Lines found', `${sum.lines} / ${sum.rounds}`, 1),
+      stat('Accuracy', `${sum.accuracy}%`, 2),
+      stat('Best streak', String(sum.bestStreak), 3)),
+    h('div', { class: 'results-grid' },
+      postPanel,
+      h('section', { class: 'panel card' },
+        h('h2', { text: 'Focus areas' }),
+        sum.focus.length
+          ? h('ul', { class: 'focus-list' }, sum.focus.map((f, i) => h('li', { class: 'rise-in', style: { '--i': i } },
+              h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
+              h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }))))
+          : h('p', { class: 'muted', text: 'Nothing missed. Try the next level up.' }))),
+    h('section', { class: 'panel card review' },
+      h('h2', { text: 'Round by round' }),
+      h('ol', { class: 'review-list' }, r.results.map((x, i) => {
+        const v = x.score.clean ? ['win', 'Clean'] : (x.score.lineCorrect || x.score.typeCorrect) ? ['partial', 'Partial'] : ['miss', 'Missed'];
+        return h('li', { class: 'fade-in-row', style: { '--i': i } },
+          h('span', { class: `pill pill-${v[0]}`, text: v[1] }),
+          h('span', { class: 'review-title', text: x.snippet.title }),
+          h('span', { class: 'review-cat', text: category(x.snippet.category).name }),
+          h('span', { class: 'review-pts', text: `+${x.score.points}` }));
+      }))),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startGame(lvl.id), text: `Play ${lvl.label} again` }),
+      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => ctx.go('home'), text: 'Choose another level' })));
+
+  countUp(scoreEl, sum.total);
+  return () => off();
+}
+
+function stat(label, value, i) {
+  return h('div', { class: 'stat card rise-in', style: { '--i': i } },
+    h('span', { class: 'stat-value', text: value }), h('span', { class: 'stat-label', text: label }));
+}
+
+// The "post your score" panel, in whichever state applies.
+function postContents(r) {
+  const lvl = r.level;
+  const title = (t) => h('h2', { id: 'post-title', text: t });
+
+  if (r.posted) {
+    const res = r.posted;
+    const parts = [`Posted to the ${boardName()} as ${res.name}.`];
+    if (res.rank && res.of) parts.push(`This game ranks number ${res.rank} of ${res.of} ${res.of === 1 ? 'player' : 'players'} at ${lvl.label}.`);
+    if (res.score !== r.summary.total) parts.push(`The scoreboard counted ${fmt(res.score)} points.`);
+    if (res.personal_best > res.score) parts.push(`Your best of ${fmt(res.personal_best)} still stands.`);
+    const board = h('div', { class: 'board-body' }, h('p', { class: 'empty', text: 'Loading the board…' }));
+    fetchBoard({ level: lvl.id, days: null, limit: 10, team: ctx.teamStatus.info ? ctx.team : null })
+      .then((rows) => board.replaceChildren(boardTable(rows, { caption: `${lvl.label} scoreboard` }) || h('p', { class: 'empty', text: 'No scores yet.' })))
+      .catch(() => board.replaceChildren());
+    return [title('Posted'), h('p', { class: 'save-msg', role: 'status', text: parts.join(' ') }), board,
+      h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('scoreboard') }, 'Open the scoreboard ', icon('arrow', 'icon icon-sm'))];
+  }
+
+  if (!onlineEnabled() || (ctx.team && !ctx.teamStatus.info)) {
+    return [title('Saved on this device'),
+      h('p', { class: 'muted', text: ctx.team ? "This team link didn't work, so this game is saved on this device only." : 'This game is saved on this device.' }),
+      h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('scoreboard') }, 'See this device\'s scores ', icon('arrow', 'icon icon-sm'))];
+  }
+
+  if (auth.status === 'loading') {
+    return [title('Post your score'), h('p', { class: 'muted', text: 'Checking your sign-in…' })];
+  }
+
+  if (!isReady()) {
+    const needsName = auth.status === 'signedIn';
+    return [title('Post your score'),
+      h('p', { class: 'muted', text: needsName
+        ? 'Choose a username to post this game. It\'s saved on this device already.'
+        : `Sign in or quick join to post this game to the ${boardName()}. It's saved on this device already.` }),
+      h('div', { class: 'btn-row' },
+        h('button', { type: 'button', class: 'btn btn-primary', onclick: () => { ctx.returnTo = 'results'; ctx.go('account'); } },
+          icon('user', 'icon icon-sm'), needsName ? 'Choose a username' : 'Sign in or quick join')),
+      h('p', { class: 'save-hint', text: 'Quick join needs only a username, no email. One account works for Spot the Bug and LureLens.' })];
+  }
+
+  const msg = h('p', { class: 'save-msg', 'aria-live': 'polite' });
+  const btn = h('button', { type: 'button', class: 'btn btn-primary' }, icon('trophy', 'icon icon-sm'), 'Post to the online scoreboard');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    msg.className = 'save-msg is-pending';
+    msg.textContent = `Posting to the ${boardName()}…`;
+    try {
+      r.posted = await postGame({ level: lvl.id, answers: r.answers, team: ctx.teamStatus.info ? ctx.team : null });
+      history.update(r.id, { posted: true });
+      const panel = btn.closest('.post-panel');
+      if (panel) fill(panel, postContents(r));
+    } catch (err) {
+      msg.className = 'save-msg is-warning';
+      msg.textContent = `${err.message} Your score is saved on this device.`;
+      btn.disabled = false;
+      btn.lastChild.textContent = 'Try again';
+    }
+  });
+  return [title('Post your score'),
+    h('p', { class: 'muted' }, 'Playing as ', h('strong', { text: auth.profile.username }), `. Your username and score will appear on the ${boardName()}.`),
+    h('div', { class: 'btn-row' }, btn),
+    msg];
+}

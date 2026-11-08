@@ -1,8 +1,7 @@
-// Scoreboards.
-//   OnlineBoard      the shared board (and private team boards) on Supabase
-//   LocalScoreStore  scores saved in this browser, used when the online board
-//                    can't be reached and as the player's own record
-import { STORAGE, ONLINE } from './config.js';
+// What's kept on this device: the "This device" scoreboard and every finished
+// game (for Progress). Works with no account and no connection. The online
+// scoreboard lives in online.js.
+import { STORAGE } from './config.js';
 
 // Team links look like ?team=acme-bank&key=XXXXXXXX. The key is the team's
 // secret: without it nobody can read or post to that team's board.
@@ -22,78 +21,6 @@ export function cleanName(name) {
     .slice(0, 24);
 }
 
-// ---------- Online ----------
-
-export class OnlineError extends Error {
-  constructor(message, { network = false } = {}) {
-    super(message);
-    this.network = network;
-  }
-}
-
-export class OnlineBoard {
-  constructor({ team = null } = {}) {
-    this.team = team;            // { slug, key } or null for the public board
-    this.enabled = Boolean(ONLINE.enabled && ONLINE.url && ONLINE.key);
-  }
-
-  async rpc(fn, body) {
-    if (!this.enabled) throw new OnlineError('The online scoreboard is switched off.', { network: true });
-    let res;
-    try {
-      res = await fetch(`${ONLINE.url}/rest/v1/rpc/${fn}`, {
-        method: 'POST',
-        headers: { apikey: ONLINE.key, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(ONLINE.timeoutMs),
-      });
-    } catch {
-      throw new OnlineError("Couldn't reach the online scoreboard. Check your connection.", { network: true });
-    }
-    let data = null;
-    try { data = await res.json(); } catch { /* empty or non JSON body */ }
-    if (!res.ok) {
-      // Messages raised by our own database functions (SQLSTATE 22023) are written for players.
-      const friendly = data && data.code === '22023' && typeof data.message === 'string';
-      throw new OnlineError(friendly ? data.message : 'The online scoreboard had a problem. Try again later.');
-    }
-    return data;
-  }
-
-  teamArgs() {
-    return this.team ? { p_team: this.team.slug, p_key: this.team.key } : {};
-  }
-
-  // Confirms a team link and returns { slug, name, expires_at }.
-  async checkTeam() {
-    if (!this.team) return null;
-    if (!this.team.key) {
-      throw new OnlineError("This team link is missing its key. Ask your organiser for the full link.");
-    }
-    return this.rpc('arcade_team', { p_game: ONLINE.game, p_slug: this.team.slug, p_key: this.team.key });
-  }
-
-  async list(level) {
-    const rows = await this.rpc('arcade_leaderboard', {
-      p_game: ONLINE.game, p_level: level, p_limit: ONLINE.boardSize, ...this.teamArgs(),
-    });
-    return (Array.isArray(rows) ? rows : []).map((r) => ({
-      rank: r.rank, name: String(r.name), score: Number(r.score), accuracy: Number(r.accuracy),
-      bestStreak: Number(r.best_streak), at: r.played_at,
-    }));
-  }
-
-  // answers: [{ id, line, type, left }] in the order they were played.
-  // The server re-scores the game from these; it never trusts a total.
-  async submit({ name, level, answers }) {
-    return this.rpc('arcade_submit_spot_the_bug', {
-      p_name: name, p_level: level, p_answers: answers, ...this.teamArgs(),
-    });
-  }
-}
-
-// ---------- This device ----------
-
 function safeStorage() {
   try {
     const s = globalThis.localStorage;
@@ -111,10 +38,29 @@ function safeStorage() {
   }
 }
 
+const store = safeStorage();
+const readJson = (key, fallback) => {
+  try {
+    const v = JSON.parse(store.getItem(key) || 'null');
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeJson = (key, value) => {
+  try { store.setItem(key, JSON.stringify(value)); } catch { /* full or blocked: the game still works */ }
+};
+
+export const prefs = {
+  get: (name, fallback = null) => readJson(`${STORAGE.keyPrefix}:pref:${name}`, fallback),
+  set: (name, value) => writeJson(`${STORAGE.keyPrefix}:pref:${name}`, value),
+};
+
+// ---------- "This device" scoreboard ----------
+
 export class LocalScoreStore {
   constructor({ team = null } = {}) {
     this.team = team ? team.slug : null;
-    this.store = safeStorage();
   }
 
   key(level) {
@@ -122,41 +68,59 @@ export class LocalScoreStore {
   }
 
   async list(level) {
-    try {
-      const rows = JSON.parse(this.store.getItem(this.key(level)) || '[]');
-      return Array.isArray(rows)
-        ? rows.filter((r) => r && typeof r.score === 'number').map((r, i) => ({ ...r, rank: i + 1 }))
-        : [];
-    } catch {
-      return [];
-    }
+    const levels = level ? [level] : ['beginner', 'intermediate', 'advanced'];
+    const rows = levels.flatMap((lvl) => {
+      const list = readJson(this.key(lvl), []);
+      return Array.isArray(list) ? list.filter((r) => r && typeof r.score === 'number').map((r) => ({ ...r, level: r.level || lvl })) : [];
+    });
+    rows.sort((a, b) => b.score - a.score || String(a.at).localeCompare(String(b.at)));
+    return rows.slice(0, STORAGE.maxEntriesPerBoard).map((r, i) => ({ ...r, rank: i + 1 }));
   }
 
   async add(entry) {
     const row = {
-      name: cleanName(entry.name) || 'Anonymous',
+      name: cleanName(entry.name) || 'You',
       score: Math.max(0, Math.round(Number(entry.score) || 0)),
       accuracy: Math.max(0, Math.min(100, Math.round(Number(entry.accuracy) || 0))),
       bestStreak: Math.max(0, Math.round(Number(entry.bestStreak) || 0)),
       level: entry.level,
       at: new Date().toISOString(),
     };
-    const rows = (await this.list(entry.level)).map(({ rank, ...r }) => r);
+    const rows = readJson(this.key(entry.level), []).filter((r) => r && typeof r.score === 'number');
     rows.push(row);
-    rows.sort((a, b) => b.score - a.score || a.at.localeCompare(b.at));
+    rows.sort((a, b) => b.score - a.score || String(a.at).localeCompare(String(b.at)));
     const kept = rows.slice(0, STORAGE.maxEntriesPerBoard);
-    try {
-      this.store.setItem(this.key(entry.level), JSON.stringify(kept));
-    } catch { /* storage full or blocked: the game still works */ }
+    writeJson(this.key(entry.level), kept);
     const rank = kept.indexOf(row);
     return { rank: rank === -1 ? null : rank + 1 };
   }
+}
 
-  rememberName(name) {
-    try { this.store.setItem(`${STORAGE.keyPrefix}:lastName`, cleanName(name)); } catch {}
-  }
+// ---------- game history (for Progress) ----------
 
-  lastName() {
-    try { return this.store.getItem(`${STORAGE.keyPrefix}:lastName`) || ''; } catch { return ''; }
-  }
+const HISTORY_KEY = `${STORAGE.keyPrefix}:history`;
+const HISTORY_MAX = 300;
+
+export const history = {
+  list() {
+    const rows = readJson(HISTORY_KEY, []);
+    return Array.isArray(rows) ? rows.filter((g) => g && g.id && g.level) : [];
+  },
+  add(game) {
+    const rows = history.list().filter((g) => g.id !== game.id);
+    rows.unshift(game);
+    writeJson(HISTORY_KEY, rows.slice(0, HISTORY_MAX));
+  },
+  update(id, patch) {
+    writeJson(HISTORY_KEY, history.list().map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  },
+  clear() {
+    writeJson(HISTORY_KEY, []);
+  },
+};
+
+export function newGameId() {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  return `g-${Date.now().toString(36)}-${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
 }

@@ -50,6 +50,9 @@ const ICONS = {
   code: 'M16 18l6-6-6-6M8 6l-6 6 6 6',
   lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   calendar: 'M3 5h18v16H3zM16 3v4M8 3v4M3 10h18',
+  flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
+  download: 'M12 3v12M7 10l5 5 5-5M4 21h16',
 };
 
 export function icon(name, cls = 'icon') {

@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Spot the Bug · Th3 SpaceIO</title>
   <meta name="description" content="Spot the Bug is a timed secure coding game by Th3 SpaceIO. Find the vulnerable line, name the flaw, learn the fix.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://rxyhvpdbfuboukqgbych.supabase.co wss://rxyhvpdbfuboukqgbych.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://rxyhvpdbfuboukqgbych.supabase.co wss://rxyhvpdbfuboukqgbych.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#0A1628">
   <meta property="og:title" content="Spot the Bug · Th3 SpaceIO">
   <meta property="og:description" content="Find the vulnerable line before the clock does. A secure coding game for developers.">
   <link rel="icon" href="assets/img/mark.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+  <link rel="manifest" href="app.webmanifest">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap">
@@ -42,6 +44,7 @@
       <span class="footer-links">
         <a href="?about" data-go="about">About</a>
         <a href="?privacy" data-go="privacy">Privacy</a>
+        <a href="?cert" data-go="cert">Check a certificate</a>
         <a href="https://thespaceio.github.io/LureLens/" rel="noopener">Play LureLens</a>
       </span>
       <span class="footer-meta"><span id="app-version"></span> · All snippets are original training code. Don't deploy them.</span>

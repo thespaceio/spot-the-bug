@@ -4,6 +4,9 @@ import { ctx, canPostOnline, boardName, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
 import { onlineEnabled, postGame, fetchBoard } from '../online.js';
 import { history } from '../storage.js';
+import { syncHistory } from '../sync.js';
+import { drawShareCard, shareText } from '../draw.js';
+import { SITE_URL } from '../config.js';
 import { boardTable } from './board.js';
 import { startGame } from './round.js';
 
@@ -20,6 +23,7 @@ export function renderResults(root) {
       id: r.id, level: lvl.id, date: r.date, score: sum.total, clean: sum.clean, lines: sum.lines,
       rounds: sum.rounds, accuracy: sum.accuracy, bestStreak: sum.bestStreak,
       team: ctx.teamStatus.info ? ctx.team.slug : null,
+      owner: isReady() ? auth.userId : null,
       answers: r.results.map((x, i) => ({
         id: x.snippet.id, category: x.snippet.category, line: x.pickedLine ?? null, type: x.pickedType ?? null,
         left: r.answers[i]?.left ?? 0, lineOk: x.score.lineCorrect, typeOk: x.score.typeCorrect, points: x.score.points,
@@ -29,6 +33,7 @@ export function renderResults(root) {
       name: isReady() ? auth.profile.username : 'You',
       score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id,
     });
+    syncHistory();   // signed in: keep it in the account too
   }
 
   const message = sum.accuracy >= 90 ? 'Sharp eyes. You read code like a reviewer.'
@@ -60,6 +65,7 @@ export function renderResults(root) {
               h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
               h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }))))
           : h('p', { class: 'muted', text: 'Nothing missed. Try the next level up.' }))),
+    sharePanel(r),
     h('section', { class: 'panel card review' },
       h('h2', { text: 'Round by round' }),
       h('ol', { class: 'review-list' }, r.results.map((x, i) => {
@@ -75,7 +81,51 @@ export function renderResults(root) {
       h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => ctx.go('home'), text: 'Choose another level' })));
 
   countUp(scoreEl, sum.total);
-  return () => off();
+  return () => {
+    off();
+    if (r.shareUrl) { URL.revokeObjectURL(r.shareUrl); r.shareUrl = null; }
+  };
+}
+
+// ---------- share ----------
+
+function sharePanel(r) {
+  const sum = r.summary;
+  const game = { level: r.level.id, score: sum.total, clean: sum.clean, rounds: sum.rounds, accuracy: sum.accuracy };
+  const text = shareText(game);
+  const img = h('img', { class: 'share-image', alt: `Share card: ${fmt(sum.total)} points at ${r.level.label} level` });
+  const buttons = h('div', { class: 'btn-row share-row' });
+  const panel = h('section', { class: 'panel card share-panel', 'aria-labelledby': 'share-title' },
+    h('div', { class: 'share-copy' },
+      h('h2', { id: 'share-title', text: 'Challenge a colleague' }),
+      h('p', { class: 'muted', text: 'Share this result as an image, or send the link.' }),
+      buttons),
+    h('div', { class: 'share-preview' }, img));
+
+  const enc = encodeURIComponent;
+  const links = [
+    ['WhatsApp', `https://wa.me/?text=${enc(text)}`],
+    ['LinkedIn', `https://www.linkedin.com/sharing/share-offsite/?url=${enc(SITE_URL)}`],
+    ['X', `https://x.com/intent/post?text=${enc(text)}`],
+  ].map(([label, href]) => h('a', { class: 'btn btn-ghost btn-small', href, target: '_blank', rel: 'noopener noreferrer', text: label }));
+
+  const username = isReady() ? auth.profile.username : '';
+  drawShareCard(game, username).then((blob) => {
+    const url = URL.createObjectURL(blob);
+    img.src = url;
+    r.shareUrl = url;
+    const file = new File([blob], `spot-the-bug-${r.level.id}-${sum.total}.png`, { type: 'image/png' });
+    const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+    fill(buttons,
+      canShare ? h('button', {
+        type: 'button', class: 'btn btn-primary btn-small',
+        onclick: () => navigator.share({ files: [file], text }).catch(() => {}),
+      }, icon('share', 'icon icon-sm'), 'Share image') : null,
+      h('a', { class: 'btn btn-ghost btn-small', href: url, download: file.name }, icon('download', 'icon icon-sm'), 'Download'),
+      links);
+  }).catch(() => fill(buttons, links));
+  fill(buttons, links);
+  return panel;
 }
 
 function stat(label, value, i) {

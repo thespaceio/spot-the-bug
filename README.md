@@ -8,6 +8,17 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.7.0
+
+- **Progress page** (`?progress`): games, rounds, accuracy and best streak; accuracy per level and per flaw type; the three weakest flaw types to practise; recent games.
+- **Synced history:** signed-in players' games are kept in their account, so Progress follows them to every device. Guest games on a device join the account the first time the player signs in there.
+- **Certificate:** 80% or more in a full game at every level earns an A4 certificate drawn in the browser: download, share, or **Add to LinkedIn**. Signed-in players can make it **checkable online** with a reference like `SB-7K2Q-X9AB`; anyone can check it at `?cert=SB-7K2Q-X9AB` (also linked from the footer). The online certificate uses only games posted to the scoreboard, which the server scored itself.
+- **Share card:** a 1200×630 image of your result, with WhatsApp, LinkedIn and X links.
+- **Pause:** the Pause button or the P key stops the clock and hides the code; switching tabs pauses automatically.
+- **Report a mistake** on every answer screen: opens a GitHub issue with the snippet's ID filled in (label `content`), or an email.
+- **What's new** note for returning players, once per release.
+- **Works offline and installs like an app:** a service worker keeps a copy of the game, plus a web app manifest and icons.
+
 ## What's new in v0.6.0
 
 - **Accounts, shared with LureLens:** sign in with an email code, or **quick join** with just a username and no email. It's the same account as LureLens (same Supabase project), and signing in to either game on this site signs you in to both.
@@ -39,11 +50,14 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 - Private team boards for licensed companies and bootcamps, opened with a secret team link
 - Scores also saved on the device, used when the online board can't be reached
 - Keyboard play: ↑ ↓ to move between lines, Enter to select, number keys to pick a type, L to lock in
+- Progress per level and flaw type, synced to the account when signed in
+- Certificate for 80%+ at every level, with online checking (`?cert=REF`) and Add to LinkedIn
+- Share card, pause, report a mistake, What's new, offline play
 - No build step, no dependencies, strict Content Security Policy
 
 ## Run it locally
 
-The game loads its snippets with `fetch`, so open it through a local server rather than double clicking `index.html`:
+The game loads its snippets with `fetch`, so open it through a local server rather than double clicking `index.html`. The offline copy (service worker) is off on `localhost` so you always see your latest changes; add `?sw` to the address to test it.
 
 ```bash
 python3 -m http.server 8000
@@ -53,7 +67,8 @@ python3 -m http.server 8000
 Check content and scoring before you push:
 
 ```bash
-npm test        # validates every snippet, then runs the engine tests
+npm test        # validates every snippet, runs the engine, Game Night and Progress tests,
+                # and checks service-worker.js is up to date
 ```
 
 ## Deploy to GitHub Pages
@@ -66,8 +81,10 @@ The `Validate snippets` workflow runs `npm test` on every push and pull request,
 
 ```
 index.html                    the page shell: header, menu, footer
+app.webmanifest               install as an app: name, colours, icons
+service-worker.js             offline copy of the game (file list kept by scripts/update-sw.mjs)
 assets/css/styles.css         brand tokens and layout
-assets/img/mark.svg           logo mark and favicon
+assets/img/                   logo mark, favicon and app icons
 assets/js/config.js           levels, timers, scoring numbers
 assets/js/engine.js           pure game logic (no DOM): rounds, options, scoring, summary
 assets/js/highlight.js        safe syntax highlighting (textContent only)
@@ -77,8 +94,12 @@ assets/js/context.js          state shared between screens
 assets/js/dom.js              DOM helpers, icons, motion (word reveals, count-up)
 assets/js/supa.js             loads the Supabase client on demand
 assets/js/auth.js             sign-in: email code, quick join, profile (shared with LureLens)
-assets/js/online.js           online scoreboard calls and live updates
-assets/js/views/*.js          one file per screen: home, round, results, scoreboard, account, about, privacy, live
+assets/js/online.js           online scoreboard, history and certificate calls, live updates
+assets/js/sync.js             keeps a signed-in player's games in their account
+assets/js/stats.js            Progress numbers (no DOM)
+assets/js/draw.js             share card and certificate images (canvas)
+assets/js/whatsnew.js         the What's new note and the release list
+assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
 data/categories.json          the 10 vulnerability types, mapped to OWASP Top 10:2025
@@ -86,6 +107,8 @@ data/snippets/*.json          snippet packs
 scripts/validate-snippets.mjs content checks
 scripts/test-engine.mjs       scoring and round building tests
 scripts/answer-key-sql.mjs    prints SQL that updates the online answer key
+scripts/test-progress.mjs     Progress and certificate rule tests
+scripts/update-sw.mjs         updates service-worker.js (version and file list); --check in npm test
 supabase/migrations/          the online scoreboard's database setup (already applied)
 ```
 
@@ -170,7 +193,8 @@ The shared board lives in the **LureLens** Supabase project (organization **Th3 
 How it stays honest:
 
 - Posting needs an account: email code or quick join. Accounts, usernames and profiles are LureLens's (`auth.users`, `public.profiles`, `save_profile`, `delete_my_account`), so one username works in both games. Deleting an account deletes its Spot the Bug scores too, and a player a LureLens moderator hides is hidden here as well.
-- The browser can call only three Spot the Bug database functions: `arcade_team`, `arcade_leaderboard` and `arcade_submit_spot_the_bug` (signed-in players only). The tables themselves can't be read or written through the API.
+- The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_submit_spot_the_bug`, `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
+- A certificate is issued only from posted games (server-scored, not hidden) with 80%+ at each level, one per account; its reference is random and renaming keeps the same reference.
 - A posted game sends the answers (snippet, line, flaw type, time left), not a score. The server re-scores it against its own answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
 - Each game must have 10 different snippets from the right level. Games are filed under the account's username; a name sent by the browser is ignored.
 - Flood limits: 10 games per account every 10 minutes, 300 per team every 10 minutes, 120 games per minute overall. No network addresses are stored.
@@ -201,6 +225,19 @@ select id, name, level, score, created_at from arcade.scores order by created_at
 update arcade.scores set hidden = true where id = 'PASTE-ID';
 -- to hide a player everywhere (LureLens too), hide their profile instead:
 update public.profiles set hidden = true where lower(username) = lower('Offensive Name');
+```
+
+### Releasing a new version
+
+1. Bump `version` in `assets/js/config.js` and `package.json`.
+2. Add the release to `RELEASES` in `assets/js/whatsnew.js` (returning players see it once).
+3. Run `node scripts/update-sw.mjs` so the offline copy picks up new and changed files, then `npm test`.
+
+### Withdraw a certificate
+
+```sql
+select reference, display_name, completed_on from arcade.certificates order by created_at desc limit 50;
+update arcade.certificates set hidden = true where reference = 'SB-XXXX-XXXX';
 ```
 
 ## Team licences

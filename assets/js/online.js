@@ -115,3 +115,27 @@ export function liveUpdates(onChange, { topic = ONLINE.liveTopic, event = 'new_s
   }
   return live;
 }
+
+// ---------- history (Progress across devices) ----------
+
+/** Saves games to the signed-in account, 100 at a time. Returns how many were new. */
+export async function pushHistory(games) {
+  let saved = 0;
+  for (let i = 0; i < games.length; i += 100) {
+    saved += Number(await rpc('arcade_history_push', { p_game: ONLINE.game, p_games: games.slice(i, i + 100) })) || 0;
+  }
+  return saved;
+}
+
+/** The signed-in account's games, newest first. */
+export async function pullHistory() {
+  const rows = await rpc('arcade_history_pull', { p_game: ONLINE.game, p_limit: 1000 });
+  return (Array.isArray(rows) ? rows : []).filter((g) => g && g.id && g.level);
+}
+
+// ---------- certificates ----------
+
+/** Issues (or renames) the signed-in player's certificate from their posted games. */
+export const registerCertificate = (displayName) => rpc('arcade_register_certificate', { p_display_name: displayName || null });
+export const myCertificate = () => rpc('arcade_my_certificate', {});
+export const checkCertificate = (reference) => rpc('arcade_check_certificate', { p_reference: reference });

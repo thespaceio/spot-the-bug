@@ -1,5 +1,5 @@
 // App shell: menu, screens, links (?live, ?privacy, ?account, ?scoreboard,
-// ?about), the back button, and start-up. Each screen lives in views/.
+// ?progress, ?about, ?cert=REF), the back button, and start-up. Each screen lives in views/.
 import { APP } from './config.js';
 import { loadContent } from './engine.js';
 import { $, $$, h, icon } from './dom.js';
@@ -14,6 +14,11 @@ import { renderAccount } from './views/account.js';
 import { renderAbout } from './views/about.js';
 import { renderPrivacy } from './views/privacy.js';
 import { renderLive } from './views/live.js';
+import { renderProgress } from './views/progress.js';
+import { renderCertCheck } from './views/certcheck.js';
+import { startSync } from './sync.js';
+import { history as games } from './storage.js';
+import { maybeShowWhatsNew } from './whatsnew.js';
 
 const VIEWS = {
   home: renderHome,
@@ -24,25 +29,30 @@ const VIEWS = {
   about: renderAbout,
   privacy: renderPrivacy,
   live: renderLive,
+  progress: renderProgress,
+  cert: renderCertCheck,
 };
 // Screens that have their own link (?scoreboard and so on).
-const LINKED = ['scoreboard', 'account', 'about', 'privacy', 'live'];
+const LINKED = ['scoreboard', 'progress', 'account', 'about', 'privacy', 'live', 'cert'];
 
 const NAV = [
   { id: 'home', label: 'Play', short: 'Play', icon: 'play' },
   { id: 'scoreboard', label: 'Scoreboard', short: 'Scores', icon: 'trophy' },
+  { id: 'progress', label: 'Progress', short: 'Progress', icon: 'chart' },
   { id: 'about', label: 'About', short: 'About', icon: 'info' },
   { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
 ];
-const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about' };
+const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress' };
 
 let cleanup = null;
+const SW_ON_LOCALHOST = new URLSearchParams(location.search).has('sw');   // read before the address is tidied
 
 function teamQuery() {
   return ctx.team ? `team=${encodeURIComponent(ctx.team.slug)}${ctx.team.key ? `&key=${encodeURIComponent(ctx.team.key)}` : ''}` : '';
 }
 
 function urlFor(view) {
+  if (view === 'cert') return `${location.pathname}?cert=${encodeURIComponent(ctx.certRef || '')}`;
   const parts = [LINKED.includes(view) ? view : '', teamQuery()].filter(Boolean);
   return `${location.pathname}${parts.length ? `?${parts.join('&')}` : ''}`;
 }
@@ -58,6 +68,7 @@ function go(view, opts = {}, { push = true } = {}) {
   const previous = cleanup;
   cleanup = null;
   ctx.view = view;
+  if (view === 'cert') ctx.certRef = opts.reference ?? new URLSearchParams(location.search).get('cert') ?? ctx.certRef ?? '';
   try { previous?.(); } catch (err) { console.error(err); }
 
   const root = $('#app');
@@ -155,8 +166,20 @@ async function boot() {
       h('p', { text: 'If you opened index.html straight from your files, the browser blocks the data files. Start a local server in the project folder instead, for example: python3 -m http.server 8000, then open http://localhost:8000.' })));
     return;
   }
+  const returning = games.list().length > 0;
   go(viewFromUrl(), {}, { push: false });
+  startSync();
   startAuth();   // loads sign-in in the background, after the first screen is up
+  if (ctx.view !== 'live') maybeShowWhatsNew({ returning });
+  registerServiceWorker();
+}
+
+// Works offline once opened: service-worker.js keeps a copy of the game.
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  if (['localhost', '127.0.0.1'].includes(location.hostname) && !SW_ON_LOCALHOST) return;   // no stale copies while developing (add ?sw to test it)
+  const register = () => navigator.serviceWorker.register('service-worker.js').catch((err) => console.warn('Offline copy unavailable:', err));
+  if (document.readyState === 'complete') register(); else window.addEventListener('load', register, { once: true });
 }
 
 boot();

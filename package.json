@@ -1,12 +1,12 @@
 {
   "name": "spot-the-bug",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Spot the Bug: a timed secure coding game by Th3 SpaceIO",
   "scripts": {
     "validate": "node scripts/validate-snippets.mjs",
-    "test": "node scripts/validate-snippets.mjs && node scripts/test-engine.mjs && node scripts/test-gamenight.mjs",
+    "test": "node scripts/validate-snippets.mjs && node scripts/test-engine.mjs && node scripts/test-gamenight.mjs && node scripts/test-progress.mjs && node scripts/update-sw.mjs --check",
     "serve": "python3 -m http.server 8000"
   }
 }

@@ -1,8 +1,8 @@
 // The timed round: pick the vulnerable line, name the flaw, see the fix.
-import { LEVELS, ROUNDS_PER_GAME } from '../config.js';
+import { LEVELS, ROUNDS_PER_GAME, REPO_URL, CONTACT_EMAIL, APP } from '../config.js';
 import { buildGame, scoreRound, summarise } from '../engine.js';
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
-import { h, $, $$, fmt, pop, reduceMotion } from '../dom.js';
+import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
 import { newGameId } from '../storage.js';
 
@@ -19,6 +19,8 @@ const game = {
   phase: 'idle',      // 'idle' | 'answer' | 'reveal'
   timer: null,
   deadline: 0,
+  paused: false,
+  leftMs: 0,          // time left when paused
 };
 let root = null;
 
@@ -39,9 +41,11 @@ export function renderRound(el, { level } = {}) {
   if (level || !game.rounds.length) begin(level || 'beginner');
   else renderCurrent();
   document.addEventListener('keydown', onKeys);
+  document.addEventListener('visibilitychange', onHidden);
   return () => {
     stopTimer();
     document.removeEventListener('keydown', onKeys);
+    document.removeEventListener('visibilitychange', onHidden);
     if (ctx.view !== 'round') {   // left the game: it can't be resumed
       game.phase = 'idle';
       game.rounds = [];
@@ -73,7 +77,9 @@ function hud() {
     h('div', { class: 'timer', role: 'timer', 'aria-label': 'Time left' },
       h('span', { class: 'timer-num', id: 'timer-num', text: game.level.seconds }),
       h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
-    h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => ctx.go('home'), text: 'Quit' }));
+    h('div', { class: 'hud-actions' },
+      h('button', { class: 'btn btn-quiet', id: 'pause', type: 'button', 'aria-keyshortcuts': 'P', onclick: togglePause }, icon('pause', 'icon icon-sm'), h('span', { text: 'Pause' })),
+      h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => ctx.go('home'), text: 'Quit' })));
 }
 
 function renderCurrent() {
@@ -82,6 +88,7 @@ function renderCurrent() {
   game.pickedLine = null;
   game.pickedType = null;
   game.phase = 'answer';
+  game.paused = false;
 
   const code = h('div', { class: 'code', id: 'code', role: 'group', 'aria-label': 'Code. Select the vulnerable line.' });
   s.code.forEach((text, idx) => {
@@ -131,7 +138,15 @@ function renderCurrent() {
           options),
         h('button', { class: 'btn btn-primary btn-block', id: 'lock', type: 'button', disabled: true, onclick: () => lockIn(false), text: 'Lock in answer' }),
         h('p', { class: 'keys', text: `Keys: ↑ ↓ move between lines, Enter selects, ${optionKeys} picks a type, L locks in.` }))),
-    h('div', { id: 'reveal', class: 'reveal' }));
+    h('div', { id: 'reveal', class: 'reveal' }),
+    h('div', { class: 'pause-cover', id: 'pause-cover', hidden: true, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'pause-title' },
+      h('div', { class: 'pause-box card' },
+        h('p', { class: 'eyebrow', text: `ROUND ${game.i + 1} OF ${game.rounds.length}` }),
+        h('h2', { id: 'pause-title', text: 'Paused' }),
+        h('p', { class: 'muted', id: 'pause-left' }),
+        h('p', { class: 'muted', text: 'The code is hidden while the clock is stopped.' }),
+        h('button', { class: 'btn btn-primary', id: 'resume', type: 'button', onclick: togglePause }, icon('play', 'icon icon-sm'), 'Resume'),
+        h('p', { class: 'keys', text: 'Press P to resume.' }))));
 
   startTimer();
   const first = $('.line:not([disabled])', code);
@@ -150,6 +165,11 @@ function onCodeKeys(e) {
 function onKeys(e) {
   if (game.phase !== 'answer' || e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePause(); return; }
+  if (game.paused) {
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePause(); }
+    return;
+  }
   const round = game.rounds[game.i];
   if (/^[0-9]$/.test(e.key)) {
     const idx = e.key === '0' ? 9 : Number(e.key) - 1;
@@ -161,7 +181,7 @@ function onKeys(e) {
 }
 
 function selectLine(n) {
-  if (game.phase !== 'answer') return;
+  if (game.phase !== 'answer' || game.paused) return;
   game.pickedLine = n;
   $$('#code .line').forEach((el) => el.setAttribute('aria-pressed', String(Number(el.dataset.line) === n)));
   $('#line-status').textContent = `Line ${n} selected.`;
@@ -170,7 +190,7 @@ function selectLine(n) {
 }
 
 function selectType(id) {
-  if (game.phase !== 'answer') return;
+  if (game.phase !== 'answer' || game.paused) return;
   game.pickedType = id;
   $$('.option').forEach((el) => el.setAttribute('aria-pressed', String(el.dataset.type === id)));
   updateLock();
@@ -180,10 +200,41 @@ function updateLock() {
   $('#lock').disabled = !(game.pickedLine && game.pickedType);
 }
 
-function startTimer() {
+// ---------- pause ----------
+
+function onHidden() {
+  if (document.visibilityState === 'hidden' && game.phase === 'answer' && !game.paused) togglePause();
+}
+
+function togglePause() {
+  if (game.phase !== 'answer') return;
+  const cover = $('#pause-cover');
+  const button = $('#pause');
+  if (!cover || !button) return;
+  if (!game.paused) {
+    game.paused = true;
+    game.leftMs = Math.max(0, game.deadline - performance.now());
+    stopTimer();
+    root.classList.add('is-paused');
+    $('#pause-left').textContent = `${Math.ceil(game.leftMs / 1000)} seconds left on the clock.`;
+    cover.hidden = false;
+    button.setAttribute('aria-pressed', 'true');
+    $('#resume').focus({ preventScroll: true });
+  } else {
+    game.paused = false;
+    root.classList.remove('is-paused');
+    cover.hidden = true;
+    button.setAttribute('aria-pressed', 'false');
+    startTimer(game.leftMs);
+    const back = $('#code .line[aria-pressed="true"]') || $('#code .line:not([disabled])');
+    back?.focus({ preventScroll: true });
+  }
+}
+
+function startTimer(remainingMs = null) {
   stopTimer();
   const totalMs = game.level.seconds * 1000;
-  game.deadline = performance.now() + totalMs;
+  game.deadline = performance.now() + (remainingMs ?? totalMs);
   const bar = $('#timer-bar');
   const num = $('#timer-num');
   const timerEl = $('.timer');
@@ -204,9 +255,10 @@ function stopTimer() {
 }
 
 function lockIn(timedOut) {
-  if (game.phase !== 'answer') return;
+  if (game.phase !== 'answer' || game.paused) return;
   if (!timedOut && !(game.pickedLine && game.pickedType)) return;
   game.phase = 'reveal';
+  $('#pause')?.setAttribute('disabled', '');
   const left = timedOut ? 0 : Math.max(0, (game.deadline - performance.now()) / 1000);
   stopTimer();
 
@@ -313,7 +365,8 @@ function renderReveal(s) {
         h('p', { text: s.explanation })),
       h('div', {},
         h('h3', { text: 'The fix' }),
-        h('p', { text: s.fix.summary }))),
+        h('p', { text: s.fix.summary })),
+      reportLink(s)),
     h('div', { class: 'compare' },
       h('div', { class: 'code-panel rise-in', style: { '--i': 1 } },
         h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-red' }), h('span', { text: 'Vulnerable' })),
@@ -324,6 +377,24 @@ function renderReveal(s) {
   if (matchMedia('(max-width: 900px)').matches) {
     $('#answer').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
   }
+}
+
+/** "Report a mistake": a GitHub issue with the details filled in, or an email. */
+function reportLink(s) {
+  const title = `Mistake in ${s.id}: ${s.title}`;
+  const body = [
+    `Snippet: ${s.id} (${s.language}, ${game.level.label})`,
+    `Title: ${s.title}`,
+    `Version: ${APP.version}`,
+    '',
+    "What's wrong? (the line, the explanation, the fix, or the flaw type)",
+    '',
+  ].join('\n');
+  const issue = `${REPO_URL}/issues/new?${new URLSearchParams({ title, body, labels: 'content' })}`;
+  const mail = `mailto:${CONTACT_EMAIL}?${new URLSearchParams({ subject: title, body }).toString().replace(/\+/g, '%20')}`;
+  return h('p', { class: 'report' }, icon('flag', 'icon icon-sm'), ' Spotted a mistake in this snippet? ',
+    h('a', { href: issue, target: '_blank', rel: 'noopener noreferrer', text: 'Report it on GitHub' }), ' or ',
+    h('a', { href: mail, text: 'email us' }), '.');
 }
 
 function nextRound() {

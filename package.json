@@ -1,6 +1,6 @@
 {
   "name": "spot-the-bug",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "description": "Spot the Bug: a timed secure coding game by Th3 SpaceIO",

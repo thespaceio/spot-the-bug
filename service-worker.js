@@ -4,7 +4,7 @@
 // version when online) and the saved copy is used only when offline.
 // VERSION and PRECACHE are kept up to date by scripts/update-sw.mjs
 // (npm test fails if they're out of date).
-const VERSION = /*VERSION*/ '0.8.0' /*END*/;
+const VERSION = /*VERSION*/ '0.9.0' /*END*/;
 const PRECACHE = /*PRECACHE*/ [
   './',
   './app.webmanifest',
@@ -23,6 +23,7 @@ const PRECACHE = /*PRECACHE*/ [
   './assets/js/engine.js',
   './assets/js/gamenight.js',
   './assets/js/highlight.js',
+  './assets/js/intro.js',
   './assets/js/online.js',
   './assets/js/qr.js',
   './assets/js/stats.js',

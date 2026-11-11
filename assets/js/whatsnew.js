@@ -6,6 +6,15 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.9',
+    title: 'A proper opening',
+    items: [
+      'Spot the Bug now opens with a short scene: a snippet under review, a scan, and the vulnerable line found.',
+      'It plays once per visit. Skip it with the button, Esc or a tap, or replay it from the footer.',
+      'It never plays if your device is set to reduce motion.',
+    ],
+  },
+  {
     version: '0.8',
     title: 'Classroom',
     items: [

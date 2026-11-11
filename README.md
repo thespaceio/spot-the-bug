@@ -8,6 +8,11 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.9.0
+
+- **Opening scene** (`assets/js/intro.js`), played while the snippets load: a fintech transfer endpoint types in, a scan sweeps the code, line 3 is locked on as SQL injection, then the code gives way to the mark, "Spot the Bug" and LEARN. BUILD. SECURE., and the curtain lifts on the home screen. About 5.5 seconds.
+- Plays once per browser session and only when the game opens on the home screen (not for `?class=`, `?live`, `?cert=` and other direct links). Skip with the button, Esc, Enter, Space or a click; "Replay intro" is in the footer. Never plays with reduced motion on. Add `?nointro` to the address to turn it off (handy for testing).
+
 ## What's new in v0.8.0
 
 - **Classroom** (`?class`): a teacher signs in, names the class, picks a level and how long it stays open (1 hour to 3 days), and gets a 6-character code, a link (`?class=CODE`) and a QR code. Students quick join with a username and play the **same ten snippets in the same order with the same answer choices**, once. Class games go to the class board only, not the public scoreboard.
@@ -109,6 +114,7 @@ assets/js/stats.js            Progress numbers (no DOM)
 assets/js/draw.js             share card and certificate images (canvas)
 assets/js/whatsnew.js         the What's new note and the release list
 assets/js/qr.js               QR codes for join links
+assets/js/intro.js            the opening scene
 assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load

@@ -22,6 +22,7 @@ import { cleanClassCode } from './online.js';
 import { startSync } from './sync.js';
 import { history as games } from './storage.js';
 import { maybeShowWhatsNew } from './whatsnew.js';
+import { wantsIntro, playIntro } from './intro.js';
 
 const VIEWS = {
   home: renderHome,
@@ -173,10 +174,16 @@ async function boot() {
   renderNav();
   updateNav();
   onAuthChange(updateNav);
+  $('#replay-intro')?.addEventListener('click', () => playIntro());
+  const loading = Promise.all([loadContent(fetchJson), checkTeamLink()]);
+  // The opening scene plays while the snippets load; the first screen appears as its curtain lifts.
+  const intro = wantsIntro(viewFromUrl()) ? playIntro({ ready: loading.catch(() => {}) }) : null;
   try {
-    [ctx.content] = await Promise.all([loadContent(fetchJson), checkTeamLink()]);
+    [ctx.content] = await loading;
+    if (intro) await intro.reveal;
   } catch (err) {
     console.error(err);
+    if (intro) await intro.reveal;
     $('#app').replaceChildren(h('div', { class: 'panel card error' },
       h('h1', { text: "The snippets didn't load." }),
       h('p', { text: 'If you opened index.html straight from your files, the browser blocks the data files. Start a local server in the project folder instead, for example: python3 -m http.server 8000, then open http://localhost:8000.' })));
@@ -186,7 +193,10 @@ async function boot() {
   go(viewFromUrl(), {}, { push: false });
   startSync();
   startAuth();   // loads sign-in in the background, after the first screen is up
-  if (ctx.view !== 'live') maybeShowWhatsNew({ returning });
+  if (ctx.view !== 'live') {
+    if (intro) intro.done.then(() => maybeShowWhatsNew({ returning }));
+    else maybeShowWhatsNew({ returning });
+  }
   registerServiceWorker();
 }
 

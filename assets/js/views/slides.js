@@ -106,7 +106,6 @@ export function heroSlides({ onPlay, onScoreboard }) {
 
   const stage = h('div', { class: 'slides-stage' }, slideEls.map((s) => s.el));
   const root = h('section', { class: 'hero-slides', 'aria-roledescription': 'carousel', 'aria-label': 'Why play Spot the Bug' },
-    h('h1', { class: 'sr-only', text: 'Spot the Bug, the secure coding game' }),
     stage,
     h('div', { class: 'slides-bar' },
       h('div', { class: 'slides-cta' },

@@ -14,7 +14,7 @@ const walk = (dir) => readdirSync(join(root, dir)).flatMap((name) => {
 
 const version = /version:\s*'([^']+)'/.exec(readFileSync(join(root, 'assets/js/config.js'), 'utf8'))[1];
 const files = ['./', 'index.html', 'app.webmanifest',
-  ...['assets', 'data'].flatMap(walk).filter((f) => !/README|\.map$/.test(f))]
+  ...['assets', 'data'].flatMap(walk).filter((f) => !/README|LICENSE|\.map$|three\.min\.js$/.test(f))]   // three.js (3D) is cached when first used, not up front
   .map((f) => (f === './' ? f : `./${relative(root, join(root, f)).split('\\').join('/')}`))
   .sort((a, b) => (a === './' ? -1 : b === './' ? 1 : a.localeCompare(b)));
 

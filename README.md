@@ -8,6 +8,16 @@ Each round shows a short piece of backend code with one security flaw. The playe
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.10.0
+
+- **3D world** (`assets/js/world.js`), built with [three.js](https://github.com/mrdoob/three.js) r186. One scene with a station per page; the camera glides between them when you change pages:
+  - **Home:** a title stage with the 3D mark among floating code slabs drawn from the real snippets (one with its flaw lit red). Scrolling down travels past three level towers (×1, ×1.5, ×2) to the scoring plates (+100 line, +50 flaw type, +50 speed, +50 streak).
+  - **Scoreboard:** a podium. **Progress:** towers sized by your average accuracy per level. **Classroom:** a class screen with students' slabs orbiting it. **Results:** close on the mark, with a burst (green for 80% or better).
+  - Other pages get a calm, dimmed view. The game screen and the big screen have no 3D.
+- **Depth on the page:** cards lean toward the mouse with a soft light (`assets/js/tilt.js`), sections rise in with a 3D swing, and the opening scene now moves in 3D.
+- **Performance:** three.js loads only after the first screen and only on devices with WebGL 2, at least 2 GB of memory, no data saver and no reduced motion. Rendering slows to 30 frames a second when nothing moves, stops when the tab is hidden, and the pixel ratio is capped. The footer's "3D: on/off" switch overrides the default either way and is remembered.
+- `assets/vendor/three.min.js` (140 KB compressed) is built by `scripts/build-three.mjs` from a checkout of the three.js repository; it is not precached for offline use until it has been used once.
+
 ## What's new in v0.9.0
 
 - **Opening scene** (`assets/js/intro.js`), played while the snippets load: a fintech transfer endpoint types in, a scan sweeps the code, line 3 is locked on as SQL injection, then the code gives way to the mark, "Spot the Bug" and LEARN. BUILD. SECURE., and the curtain lifts on the home screen. About 5.5 seconds.
@@ -115,6 +125,8 @@ assets/js/draw.js             share card and certificate images (canvas)
 assets/js/whatsnew.js         the What's new note and the release list
 assets/js/qr.js               QR codes for join links
 assets/js/intro.js            the opening scene
+assets/js/world.js            the 3D world (three.js)
+assets/js/tilt.js             cards that lean toward the mouse
 assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
@@ -124,6 +136,7 @@ scripts/validate-snippets.mjs content checks
 scripts/test-engine.mjs       scoring and round building tests
 scripts/answer-key-sql.mjs    prints SQL that updates the online answer key
 scripts/test-progress.mjs     Progress and certificate rule tests
+scripts/build-three.mjs       builds assets/vendor/three.min.js from a three.js checkout
 scripts/update-sw.mjs         updates service-worker.js (version and file list); --check in npm test
 supabase/migrations/          the online scoreboard's database setup (already applied)
 ```

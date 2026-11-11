@@ -6,6 +6,17 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.10',
+    title: 'Spot the Bug in 3D',
+    items: [
+      'A 3D world behind the game, built with three.js. Each page has its own place in it, and the camera glides between them.',
+      'The home page opens on a 3D title stage, then travels past the level towers and the scoring plates as you scroll.',
+      'A podium on the scoreboard, towers sized by your own accuracy on Progress, and a class ring on Classroom.',
+      'Cards lean toward your mouse. The game screen stays flat so code is easy to read.',
+      'Turn 3D off or on from the footer. It starts off on devices set to reduce motion or save data.',
+    ],
+  },
+  {
     version: '0.9',
     title: 'A proper opening',
     items: [

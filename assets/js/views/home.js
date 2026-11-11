@@ -1,7 +1,7 @@
 // Home: rotating headline, Game Night notice, level picker, top players this week.
 import { LEVELS, ROUNDS_PER_GAME, SCORING } from '../config.js';
 import { countByLevel } from '../engine.js';
-import { h, icon, pageHead, reduceMotion, fill } from '../dom.js';
+import { h, icon, pageHead, reduceMotion, fill, revealText } from '../dom.js';
 import { nextGameNightLabel, GAME_NIGHT_URL } from '../gamenight.js';
 import { ctx, isOpen } from '../context.js';
 import { onlineEnabled, fetchBoard, liveUpdates } from '../online.js';
@@ -13,14 +13,12 @@ export function renderHome(root) {
   const cleanups = [];
   const counts = countByLevel(ctx.content.snippets);
 
-  const slides = heroSlides({
-    onPlay: () => {
-      const target = document.getElementById('levels');
-      target?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
-      target?.querySelector('.level-card .btn-primary')?.focus({ preventScroll: true });
-    },
-    onScoreboard: () => ctx.go('scoreboard'),
-  });
+  const toLevels = () => {
+    const target = document.getElementById('levels');
+    target?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+    target?.querySelector('.level-card .btn-primary')?.focus({ preventScroll: true });
+  };
+  const slides = heroSlides({ onPlay: toLevels, onScoreboard: () => ctx.go('scoreboard') });
   cleanups.push(() => slides.destroy());
 
   const levelCards = Object.values(LEVELS).map((lvl, i) => {
@@ -58,6 +56,7 @@ export function renderHome(root) {
     ctx.teamStatus.info ? h('div', { class: 'notice notice-team', role: 'status' },
       h('p', { class: 'notice-title' }, icon('users', 'icon icon-sm'), ` ${ctx.teamStatus.info.name} team board`),
       h('p', { text: 'Scores you post from this link go to your team\'s private board. Team play is open every day.' })) : null,
+    titleStage(toLevels),
     slides.el,
     isOpen() ? null : h('section', { class: 'gamenight-closed card', id: 'game-night-closed', role: 'status' },
       h('h2', { text: 'Public games open on Fridays' }),
@@ -82,6 +81,23 @@ export function renderHome(root) {
           scoringRows.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: v })))))));
 
   return () => cleanups.forEach((fn) => fn());
+}
+
+// The title stage: the name and the way in on the left; on the right, the 3D
+// mark from the world behind the page (assets/js/world.js), or a still mark
+// when 3D is off. It picks up where the opening scene ends.
+function titleStage(onPlay) {
+  return h('section', { class: 'title-stage', 'aria-labelledby': 'stage-title' },
+    h('div', { class: 'stage-copy' },
+      h('p', { class: 'eyebrow text-in', text: 'TH3 SPACEIO // SECURE CODE REVIEW' }),
+      h('h1', { id: 'stage-title', class: 'stage-title' }, revealText('Spot the Bug', 150)),
+      h('p', { class: 'lead text-in', style: { '--d': '550ms' }, text: 'Find the vulnerable line before the clock runs out, name the flaw, then see the fix. Thirty original snippets of JavaScript, Python and PHP, from fintech transfers to school portals.' }),
+      h('div', { class: 'btn-row text-in', style: { '--d': '750ms' } },
+        h('button', { type: 'button', class: 'btn btn-primary btn-lg', onclick: onPlay }, icon('play', 'icon icon-sm'), 'Play now'),
+        h('button', { type: 'button', class: 'btn btn-ghost btn-lg', onclick: () => ctx.go('scoreboard') }, icon('trophy', 'icon icon-sm'), 'Scoreboard')),
+      h('p', { class: 'stage-scroll', 'aria-hidden': 'true' }, h('span', { class: 'stage-scroll-line' }), 'Scroll to explore')),
+    h('div', { class: 'stage-mark', 'aria-hidden': 'true' },
+      h('img', { src: 'assets/img/mark.svg', alt: '', width: '240', height: '240' })));
 }
 
 // "Top players this week", live. Hidden while empty.

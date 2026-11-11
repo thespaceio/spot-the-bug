@@ -2,7 +2,7 @@
 // ?progress, ?about, ?cert=REF, ?class=CODE, ?moderate), the back button, and start-up. Each screen lives in views/.
 import { APP } from './config.js';
 import { loadContent } from './engine.js';
-import { $, $$, h, icon } from './dom.js';
+import { $, $$, h, icon, reduceMotion } from './dom.js';
 import { ctx } from './context.js';
 import { auth, isReady, onAuthChange, startAuth } from './auth.js';
 import { checkTeam, onlineEnabled } from './online.js';
@@ -19,10 +19,12 @@ import { renderCertCheck } from './views/certcheck.js';
 import { renderClassroom } from './views/classroom.js';
 import { renderModerate } from './views/moderate.js';
 import { cleanClassCode } from './online.js';
-import { startSync } from './sync.js';
-import { history as games } from './storage.js';
+import { startSync, myGames } from './sync.js';
+import { history as games, prefs } from './storage.js';
+import { levelStats } from './stats.js';
 import { maybeShowWhatsNew } from './whatsnew.js';
 import { wantsIntro, playIntro } from './intro.js';
+import { startTilt } from './tilt.js';
 
 const VIEWS = {
   home: renderHome,
@@ -98,6 +100,7 @@ function go(view, opts = {}, { push = true } = {}) {
     screen.replaceChildren(h('div', { class: 'panel card error' }, h('h1', { text: 'Something went wrong.' }), h('p', { text: 'Reload the page to try again.' })));
   }
   updateNav();
+  world?.setView(view, worldData(view));
   const url = urlFor(view);
   if (push) history.pushState({ view }, '', url);
   // Keep the #fragment on a replace: a sign-in link carries its token there,
@@ -198,6 +201,75 @@ async function boot() {
     else maybeShowWhatsNew({ returning });
   }
   registerServiceWorker();
+  startTilt();
+  $('#toggle-3d')?.addEventListener('click', toggleWorld);
+  updateWorldToggle();
+  if (worldWanted()) {
+    const later = () => (window.requestIdleCallback ? requestIdleCallback(startWorld3d, { timeout: 1500 }) : setTimeout(startWorld3d, 300));
+    if (intro) intro.done.then(later); else later();
+  }
+}
+
+// ---------- the 3D world (assets/js/world.js, three.js) ----------
+// Loaded after the first screen, only where it should run smoothly: WebGL 2,
+// no reduced motion, no data saver, and 2 GB of memory or more. The footer
+// switch overrides that either way.
+
+let world = null;
+let worldLoading = false;
+const webgl2 = () => typeof WebGL2RenderingContext === 'function';
+
+function worldWanted() {
+  const choice = prefs.get('world3d', null);
+  if (choice === 'off' || !webgl2()) return false;
+  if (choice === 'on') return true;
+  return !reduceMotion() && !navigator.connection?.saveData && (navigator.deviceMemory ?? 4) >= 2;
+}
+
+function worldData(view) {
+  if (view === 'progress') {
+    const stats = levelStats(myGames());
+    return { levels: Object.fromEntries(Object.entries(stats).map(([id, s]) => [id, s.played ? s.avgAccuracy : 0])) };
+  }
+  if (view === 'results') return { accuracy: ctx.result?.summary?.accuracy ?? 0 };
+  return {};
+}
+
+async function startWorld3d() {
+  if (world || worldLoading || !webgl2() || !ctx.content) return;
+  worldLoading = true;
+  updateWorldToggle();
+  try {
+    const { startWorld } = await import('./world.js');
+    world = await startWorld({ snippets: ctx.content.snippets });
+    world.setView(ctx.view, worldData(ctx.view));
+    document.documentElement.classList.add('has-world');
+  } catch (err) {
+    console.warn('3D view unavailable:', err);
+    world = null;
+  } finally {
+    worldLoading = false;
+    updateWorldToggle();
+  }
+}
+
+function stopWorld3d() {
+  world?.destroy();
+  world = null;
+  document.documentElement.classList.remove('has-world');
+  updateWorldToggle();
+}
+
+function toggleWorld() {
+  if (world) { prefs.set('world3d', 'off'); stopWorld3d(); } else { prefs.set('world3d', 'on'); startWorld3d(); }
+}
+
+function updateWorldToggle() {
+  const b = $('#toggle-3d');
+  if (!b) return;
+  b.hidden = !webgl2();
+  b.textContent = worldLoading ? '3D: loading…' : world ? '3D: on' : '3D: off';
+  b.setAttribute('aria-pressed', String(Boolean(world)));
 }
 
 // Works offline once opened: service-worker.js keeps a copy of the game.

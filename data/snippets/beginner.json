@@ -735,6 +735,633 @@
       ],
       "author": "Th3 SpaceIO",
       "version": 1
+    },
+    {
+      "id": "BEG-011",
+      "difficulty": "beginner",
+      "surface": "mobile",
+      "language": "kotlin",
+      "framework": "Android",
+      "file": "app/src/main/java/ng/sparkpay/agent/LoginActivity.kt",
+      "title": "POS agent app remembers the PIN",
+      "context": "SparkPay's agent app signs POS agents in each morning. The session token goes into encrypted storage; the team also wanted agents to type less.",
+      "category": "insecure-storage",
+      "code": [
+        "class LoginActivity : AppCompatActivity() {",
+        "",
+        "    private val secureStore by lazy { SecureStore(this) }  // EncryptedSharedPreferences",
+        "",
+        "    private fun onLoginSuccess(agentId: String, pin: String, token: String) {",
+        "        secureStore.saveToken(token)",
+        "",
+        "        // Remember the agent so they don't retype everything each morning",
+        "        val prefs = getSharedPreferences(\"agent_profile\", Context.MODE_PRIVATE)",
+        "        prefs.edit()",
+        "            .putString(\"agent_id\", agentId)",
+        "            .putString(\"agent_pin\", pin)",
+        "            .apply()",
+        "",
+        "        startActivity(Intent(this, HomeActivity::class.java))",
+        "        finish()",
+        "    }",
+        "}"
+      ],
+      "vulnerableLine": 12,
+      "acceptLines": [],
+      "distractors": [
+        "hardcoded-secret",
+        "sensitive-logging",
+        "insecure-transport",
+        "exported-component"
+      ],
+      "explanation": "SharedPreferences is a plain XML file in the app's data folder. Anyone with a rooted phone, a backup of it, or malware that gains root can open it and read the agent's PIN in plain text, and on a POS app that PIN approves cash outs. The token went into encrypted storage, but the PIN, which matters more, didn't.",
+      "fix": {
+        "summary": "Don't store the PIN at all. Remember only the agent ID, and ask for the PIN (or a fingerprint through BiometricPrompt) each session.",
+        "code": [
+          "class LoginActivity : AppCompatActivity() {",
+          "",
+          "    private val secureStore by lazy { SecureStore(this) }  // EncryptedSharedPreferences",
+          "",
+          "    private fun onLoginSuccess(agentId: String, pin: String, token: String) {",
+          "        secureStore.saveToken(token)",
+          "",
+          "        // Remember who the agent is, never their PIN: ask for it (or a fingerprint) each session",
+          "        val prefs = getSharedPreferences(\"agent_profile\", Context.MODE_PRIVATE)",
+          "        prefs.edit()",
+          "            .putString(\"agent_id\", agentId)",
+          "            .apply()",
+          "",
+          "        startActivity(Intent(this, HomeActivity::class.java))",
+          "        finish()",
+          "    }",
+          "}"
+        ],
+        "changedLines": [
+          8
+        ]
+      }
+    },
+    {
+      "id": "BEG-012",
+      "difficulty": "beginner",
+      "surface": "mobile",
+      "language": "dart",
+      "framework": "Flutter",
+      "file": "lib/services/api_client.dart",
+      "title": "Wallet app that trusts any certificate",
+      "context": "The SparkPay wallet's network client. A developer hit a certificate error while testing against a staging server last month.",
+      "category": "insecure-transport",
+      "code": [
+        "import 'dart:io';",
+        "import 'package:http/io_client.dart';",
+        "",
+        "class ApiClient {",
+        "  static const baseUrl = 'https://api.sparkpay.example/v1';",
+        "",
+        "  static IOClient create() {",
+        "    final httpClient = HttpClient()",
+        "      ..connectionTimeout = const Duration(seconds: 15)",
+        "      ..badCertificateCallback = (cert, host, port) => true;",
+        "    return IOClient(httpClient);",
+        "  }",
+        "}"
+      ],
+      "vulnerableLine": 10,
+      "acceptLines": [],
+      "distractors": [
+        "insecure-storage",
+        "hardcoded-secret",
+        "unsafe-webview",
+        "sensitive-logging"
+      ],
+      "explanation": "Returning true from badCertificateCallback accepts every certificate, including one an attacker made five minutes ago. Anyone on the same Wi-Fi, hotspot or router can sit in the middle and read or change every request: sign in, PIN and transfers. The https:// in the URL no longer protects anything. It is usually added to get past a staging error and then shipped.",
+      "fix": {
+        "summary": "Remove the callback so normal certificate checks apply. Give staging a real certificate (for example from Let's Encrypt) instead of switching checks off.",
+        "code": [
+          "import 'dart:io';",
+          "import 'package:http/io_client.dart';",
+          "",
+          "class ApiClient {",
+          "  static const baseUrl = 'https://api.sparkpay.example/v1';",
+          "",
+          "  static IOClient create() {",
+          "    final httpClient = HttpClient()",
+          "      ..connectionTimeout = const Duration(seconds: 15);  // default certificate checks stay on",
+          "    return IOClient(httpClient);",
+          "  }",
+          "}"
+        ],
+        "changedLines": [
+          9
+        ]
+      }
+    },
+    {
+      "id": "BEG-013",
+      "difficulty": "beginner",
+      "surface": "mobile",
+      "language": "kotlin",
+      "framework": "Android",
+      "file": "app/src/main/java/ng/sparkpay/kyc/BvnRepository.kt",
+      "title": "BVN check during account opening",
+      "context": "New customers enter their 11-digit BVN and date of birth, and the app checks them with SparkPay's KYC API.",
+      "category": "sensitive-logging",
+      "code": [
+        "class BvnRepository(private val api: KycApi) {",
+        "",
+        "    suspend fun verify(bvn: String, dateOfBirth: String): BvnResult {",
+        "        require(bvn.length == 11 && bvn.all { it.isDigit() }) { \"BVN must be 11 digits\" }",
+        "        Log.d(\"KYC\", \"Verifying BVN $bvn for DOB $dateOfBirth\")",
+        "        val response = api.verifyBvn(BvnRequest(bvn, dateOfBirth))",
+        "        if (!response.isSuccessful) {",
+        "            Log.w(\"KYC\", \"BVN check failed with HTTP ${response.code()}\")",
+        "            return BvnResult.Failed",
+        "        }",
+        "        return BvnResult.Verified(response.body()!!.firstName)",
+        "    }",
+        "}"
+      ],
+      "vulnerableLine": 5,
+      "acceptLines": [],
+      "distractors": [
+        "insecure-storage",
+        "verbose-errors",
+        "insecure-transport",
+        "access-control"
+      ],
+      "explanation": "Log.d is not removed from release builds unless you strip it. Every customer's BVN and date of birth goes to Logcat, where anyone with the phone and USB debugging can read it, and many crash and analytics tools collect recent logs. A BVN with a birth date is exactly what identity fraud needs. The failure log on the next lines is fine: it only records a status code.",
+      "fix": {
+        "summary": "Never log personal data. Log the event without the values, so the log tells you a check happened but not whose.",
+        "code": [
+          "class BvnRepository(private val api: KycApi) {",
+          "",
+          "    suspend fun verify(bvn: String, dateOfBirth: String): BvnResult {",
+          "        require(bvn.length == 11 && bvn.all { it.isDigit() }) { \"BVN must be 11 digits\" }",
+          "        Log.d(\"KYC\", \"Verifying a BVN\")  // never the BVN or date of birth",
+          "        val response = api.verifyBvn(BvnRequest(bvn, dateOfBirth))",
+          "        if (!response.isSuccessful) {",
+          "            Log.w(\"KYC\", \"BVN check failed with HTTP ${response.code()}\")",
+          "            return BvnResult.Failed",
+          "        }",
+          "        return BvnResult.Verified(response.body()!!.firstName)",
+          "    }",
+          "}"
+        ],
+        "changedLines": [
+          5
+        ]
+      }
+    },
+    {
+      "id": "BEG-014",
+      "difficulty": "beginner",
+      "surface": "mobile",
+      "language": "kotlin",
+      "framework": "Android",
+      "file": "app/src/main/java/ng/sparkpay/help/HelpActivity.kt",
+      "title": "Help pages opened from a link",
+      "context": "Support agents send customers links like sparkpay://help?page=https://help.sparkpay.example/limits, which open help pages inside the app. The pages can show the wallet balance through a JavaScript bridge.",
+      "category": "unsafe-webview",
+      "code": [
+        "class HelpActivity : AppCompatActivity() {",
+        "",
+        "    override fun onCreate(savedInstanceState: Bundle?) {",
+        "        super.onCreate(savedInstanceState)",
+        "        val webView = WebView(this)",
+        "        setContentView(webView)",
+        "",
+        "        webView.settings.javaScriptEnabled = true",
+        "        webView.addJavascriptInterface(WalletBridge(this), \"Wallet\")",
+        "",
+        "        // Opened from links like sparkpay://help?page=https://help.sparkpay.example/limits",
+        "        val page = intent.data?.getQueryParameter(\"page\") ?: \"https://help.sparkpay.example\"",
+        "        webView.loadUrl(page)",
+        "    }",
+        "}"
+      ],
+      "vulnerableLine": 13,
+      "acceptLines": [
+        12
+      ],
+      "distractors": [
+        "exported-component",
+        "xss",
+        "insecure-transport",
+        "access-control"
+      ],
+      "explanation": "The app loads whatever address is in the link. A scammer sends sparkpay://help?page=https://their-site.example by SMS or WhatsApp, the app opens their page with JavaScript on, and the Wallet bridge is right there for their script to call. A help screen meant for trusted pages becomes a way into the wallet.",
+      "fix": {
+        "summary": "Only load pages from the help site over HTTPS, and fall back to the help home page for anything else.",
+        "code": [
+          "class HelpActivity : AppCompatActivity() {",
+          "",
+          "    override fun onCreate(savedInstanceState: Bundle?) {",
+          "        super.onCreate(savedInstanceState)",
+          "        val webView = WebView(this)",
+          "        setContentView(webView)",
+          "",
+          "        webView.settings.javaScriptEnabled = true",
+          "        webView.addJavascriptInterface(WalletBridge(this), \"Wallet\")",
+          "",
+          "        val requested = intent.data?.getQueryParameter(\"page\")?.let { Uri.parse(it) }",
+          "        val page = requested?.takeIf { it.scheme == \"https\" && it.host == \"help.sparkpay.example\" }",
+          "        webView.loadUrl(page?.toString() ?: \"https://help.sparkpay.example\")",
+          "    }",
+          "}"
+        ],
+        "changedLines": [
+          11,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "id": "BEG-015",
+      "difficulty": "beginner",
+      "surface": "mobile",
+      "language": "xml",
+      "framework": "Android",
+      "file": "app/src/main/AndroidManifest.xml",
+      "title": "Agent app screens in the manifest",
+      "context": "The agent app: agents sign in, see their float, then confirm payouts after entering their PIN on the previous screen.",
+      "category": "exported-component",
+      "code": [
+        "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">",
+        "    <application",
+        "        android:label=\"SparkPay Agent\"",
+        "        android:allowBackup=\"false\"",
+        "        android:icon=\"@mipmap/ic_launcher\">",
+        "",
+        "        <activity android:name=\".LoginActivity\" android:exported=\"true\">",
+        "            <intent-filter>",
+        "                <action android:name=\"android.intent.action.MAIN\" />",
+        "                <category android:name=\"android.intent.category.LAUNCHER\" />",
+        "            </intent-filter>",
+        "        </activity>",
+        "",
+        "        <activity android:name=\".PayoutConfirmActivity\" android:exported=\"true\" />",
+        "",
+        "        <activity android:name=\".SettingsActivity\" android:exported=\"false\" />",
+        "    </application>",
+        "</manifest>"
+      ],
+      "vulnerableLine": 14,
+      "acceptLines": [],
+      "distractors": [
+        "unsafe-webview",
+        "insecure-storage",
+        "access-control",
+        "hardcoded-secret"
+      ],
+      "explanation": "exported=\"true\" lets any other app on the phone open the payout confirmation screen directly, with its own amount and account in the intent, skipping the sign in and the PIN step that normally come before it. Only the launcher screen needs to be exported; screens inside a flow should only be reachable from the app itself.",
+      "fix": {
+        "summary": "Set exported=\"false\" on every screen that isn't an entry point. Inside the screen, also check that the agent is signed in and the PIN step was completed.",
+        "code": [
+          "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">",
+          "    <application",
+          "        android:label=\"SparkPay Agent\"",
+          "        android:allowBackup=\"false\"",
+          "        android:icon=\"@mipmap/ic_launcher\">",
+          "",
+          "        <activity android:name=\".LoginActivity\" android:exported=\"true\">",
+          "            <intent-filter>",
+          "                <action android:name=\"android.intent.action.MAIN\" />",
+          "                <category android:name=\"android.intent.category.LAUNCHER\" />",
+          "            </intent-filter>",
+          "        </activity>",
+          "",
+          "        <activity android:name=\".PayoutConfirmActivity\" android:exported=\"false\" />",
+          "",
+          "        <activity android:name=\".SettingsActivity\" android:exported=\"false\" />",
+          "    </application>",
+          "</manifest>"
+        ],
+        "changedLines": [
+          14
+        ]
+      }
+    },
+    {
+      "id": "BEG-016",
+      "difficulty": "beginner",
+      "surface": "config",
+      "language": "rules",
+      "framework": "Firebase",
+      "file": "firestore.rules",
+      "title": "School results in Firestore",
+      "context": "A secondary school's results app. Students sign in and read their own results; only the school's admin server writes them.",
+      "category": "open-rules",
+      "code": [
+        "rules_version = '2';",
+        "service cloud.firestore {",
+        "  match /databases/{database}/documents {",
+        "",
+        "    // Students read their own results after signing in",
+        "    match /results/{studentId} {",
+        "      allow read: if request.auth != null && request.auth.uid == studentId;",
+        "      allow write: if false;  // only the admin server writes results",
+        "    }",
+        "",
+        "    match /{document=**} {",
+        "      allow read, write: if true;",
+        "    }",
+        "  }",
+        "}"
+      ],
+      "vulnerableLine": 12,
+      "acceptLines": [
+        11
+      ],
+      "distractors": [
+        "access-control",
+        "secret-leak",
+        "exposed-files",
+        "hardcoded-secret"
+      ],
+      "explanation": "Firestore rules add up: if any rule allows a request, it goes through. The careful results rule doesn't matter, because the catch-all at the bottom lets anyone, signed in or not, read and change every document, results included. It's what Firebase's \"test mode\" leaves behind if nobody removes it.",
+      "fix": {
+        "summary": "Delete the catch-all. Anything without its own rule is then denied by default.",
+        "code": [
+          "rules_version = '2';",
+          "service cloud.firestore {",
+          "  match /databases/{database}/documents {",
+          "",
+          "    // Students read their own results after signing in",
+          "    match /results/{studentId} {",
+          "      allow read: if request.auth != null && request.auth.uid == studentId;",
+          "      allow write: if false;  // only the admin server writes results",
+          "    }",
+          "",
+          "    // No catch-all: anything without a rule above is denied",
+          "  }",
+          "}"
+        ],
+        "changedLines": [
+          11
+        ]
+      }
+    },
+    {
+      "id": "BEG-017",
+      "difficulty": "beginner",
+      "surface": "config",
+      "language": "dockerfile",
+      "framework": "Docker",
+      "file": "Dockerfile",
+      "title": "Results portal container image",
+      "context": "The school portal's API image is built on every release and pushed to the team's Docker Hub repository, where the hosting server pulls it.",
+      "category": "secret-leak",
+      "code": [
+        "FROM node:22-alpine",
+        "",
+        "WORKDIR /app",
+        "COPY package.json package-lock.json ./",
+        "RUN npm ci --omit=dev",
+        "",
+        "COPY src ./src",
+        "COPY .env ./.env",
+        "",
+        "ENV NODE_ENV=production",
+        "USER node",
+        "EXPOSE 3000",
+        "CMD [\"node\", \"src/server.js\"]"
+      ],
+      "vulnerableLine": 8,
+      "acceptLines": [],
+      "distractors": [
+        "hardcoded-secret",
+        "excess-privilege",
+        "exposed-files",
+        "supply-chain"
+      ],
+      "explanation": "The .env file, with the database password and payment keys, is copied into the image. Every copy of the image now carries it: anyone who can pull from the registry (everyone, if the repository is public), anyone with access to a server it ran on, and every old image tag you forgot to delete. Changing the .env later doesn't remove it from images already pushed.",
+      "fix": {
+        "summary": "Keep secrets out of the image. Pass them when the container starts (docker run --env-file, or your host's secret settings), and list .env in .dockerignore. Then rotate the keys that were exposed.",
+        "code": [
+          "FROM node:22-alpine",
+          "",
+          "WORKDIR /app",
+          "COPY package.json package-lock.json ./",
+          "RUN npm ci --omit=dev",
+          "",
+          "COPY src ./src",
+          "# Secrets come from the environment at run time (docker run --env-file .env), never the image",
+          "",
+          "ENV NODE_ENV=production",
+          "USER node",
+          "EXPOSE 3000",
+          "CMD [\"node\", \"src/server.js\"]"
+        ],
+        "changedLines": [
+          8
+        ]
+      }
+    },
+    {
+      "id": "BEG-018",
+      "difficulty": "beginner",
+      "surface": "config",
+      "language": "yaml",
+      "framework": "GitHub Actions",
+      "file": ".github/workflows/ci.yml",
+      "title": "Installing a PDF tool in CI",
+      "context": "The receipts service needs a PDF tool for its tests, so a developer added the install command from the tool's website to the CI workflow.",
+      "category": "supply-chain",
+      "code": [
+        "name: CI",
+        "on: [push, pull_request]",
+        "",
+        "jobs:",
+        "  test:",
+        "    runs-on: ubuntu-latest",
+        "    permissions:",
+        "      contents: read",
+        "    steps:",
+        "      - uses: actions/checkout@v4",
+        "      - name: Install the PDF tool",
+        "        run: curl -sSL http://get.pdftools.example/install.sh | sudo bash",
+        "      - run: npm ci",
+        "      - run: npm test"
+      ],
+      "vulnerableLine": 12,
+      "acceptLines": [],
+      "distractors": [
+        "secret-leak",
+        "excess-privilege",
+        "ssrf",
+        "open-rules"
+      ],
+      "explanation": "The workflow downloads a script over plain http and runs it as root without looking at it. Whoever controls that website, or anyone who can tamper with the connection, decides what runs in your CI on every push. If they change the script tomorrow, your next build runs their code, with access to your source and anything the job can reach.",
+      "fix": {
+        "summary": "Install from a trusted, signed package source, or download one fixed release over HTTPS and check its published SHA-256 before running it.",
+        "code": [
+          "name: CI",
+          "on: [push, pull_request]",
+          "",
+          "jobs:",
+          "  test:",
+          "    runs-on: ubuntu-latest",
+          "    permissions:",
+          "      contents: read",
+          "    steps:",
+          "      - uses: actions/checkout@v4",
+          "      - name: Install the PDF tool (signed package from the Ubuntu archive)",
+          "        run: sudo apt-get update && sudo apt-get install -y poppler-utils",
+          "      - run: npm ci",
+          "      - run: npm test"
+        ],
+        "changedLines": [
+          11,
+          12
+        ]
+      }
+    },
+    {
+      "id": "BEG-019",
+      "difficulty": "beginner",
+      "surface": "config",
+      "language": "yaml",
+      "framework": "Docker Compose",
+      "file": "compose.yaml",
+      "title": "Report worker in Docker Compose",
+      "context": "The worker turns uploaded bank statements into PDF reports and saves them to the reports folder.",
+      "category": "excess-privilege",
+      "code": [
+        "services:",
+        "  api:",
+        "    build: .",
+        "    ports:",
+        "      - \"8080:8080\"",
+        "    env_file: .env",
+        "    depends_on:",
+        "      - db",
+        "  report-worker:",
+        "    build: ./worker",
+        "    privileged: true",
+        "    volumes:",
+        "      - ./reports:/app/reports",
+        "  db:",
+        "    image: postgres:17",
+        "    environment:",
+        "      POSTGRES_PASSWORD_FILE: /run/secrets/db_password",
+        "    secrets:",
+        "      - db_password",
+        "secrets:",
+        "  db_password:",
+        "    file: ./secrets/db_password.txt"
+      ],
+      "vulnerableLine": 11,
+      "acceptLines": [],
+      "distractors": [
+        "secret-leak",
+        "exposed-files",
+        "supply-chain",
+        "path-traversal"
+      ],
+      "explanation": "privileged: true gives the container nearly every power the host has, including its devices. The report worker opens files customers upload, so a bug in its PDF library is likely one day; with privileged mode, that bug becomes control of the whole server and every other container on it. Writing to one folder needs none of this.",
+      "fix": {
+        "summary": "Remove privileged. Run the worker as a normal user, drop all extra capabilities and make its file system read only apart from the reports folder.",
+        "code": [
+          "services:",
+          "  api:",
+          "    build: .",
+          "    ports:",
+          "      - \"8080:8080\"",
+          "    env_file: .env",
+          "    depends_on:",
+          "      - db",
+          "  report-worker:",
+          "    build: ./worker",
+          "    user: \"1000:1000\"",
+          "    read_only: true",
+          "    cap_drop: [ALL]",
+          "    volumes:",
+          "      - ./reports:/app/reports",
+          "  db:",
+          "    image: postgres:17",
+          "    environment:",
+          "      POSTGRES_PASSWORD_FILE: /run/secrets/db_password",
+          "    secrets:",
+          "      - db_password",
+          "secrets:",
+          "  db_password:",
+          "    file: ./secrets/db_password.txt"
+        ],
+        "changedLines": [
+          11,
+          12,
+          13
+        ]
+      }
+    },
+    {
+      "id": "BEG-020",
+      "difficulty": "beginner",
+      "surface": "config",
+      "language": "nginx",
+      "framework": "nginx",
+      "file": "/etc/nginx/sites-enabled/results-portal.conf",
+      "title": "Results portal web server",
+      "context": "The college's results portal. A nightly job saves a database dump to the backups folder, and the admin wanted to download them from a browser.",
+      "category": "exposed-files",
+      "code": [
+        "server {",
+        "    listen 443 ssl;",
+        "    server_name results.lagos-college.example;",
+        "",
+        "    ssl_certificate     /etc/ssl/portal/fullchain.pem;",
+        "    ssl_certificate_key /etc/ssl/portal/privkey.pem;",
+        "",
+        "    root /var/www/portal/public;",
+        "    index index.html;",
+        "",
+        "    location /api/ {",
+        "        proxy_pass http://127.0.0.1:8080;",
+        "    }",
+        "",
+        "    location /backups/ {",
+        "        alias /var/www/portal/backups/;",
+        "        autoindex on;",
+        "    }",
+        "}"
+      ],
+      "vulnerableLine": 15,
+      "acceptLines": [
+        17,
+        16
+      ],
+      "distractors": [
+        "access-control",
+        "secret-leak",
+        "path-traversal",
+        "verbose-errors"
+      ],
+      "explanation": "The backups folder is served to the whole internet, and autoindex even lists the files. Anyone who tries /backups/ (scanners do, constantly) can download every nightly dump: every student's results, phone numbers and the staff password hashes. There is no sign in in front of it at all.",
+      "fix": {
+        "summary": "Don't serve backups from the web server. Keep them outside the web root (better, on separate storage) and fetch them over SSH or an authenticated admin tool.",
+        "code": [
+          "server {",
+          "    listen 443 ssl;",
+          "    server_name results.lagos-college.example;",
+          "",
+          "    ssl_certificate     /etc/ssl/portal/fullchain.pem;",
+          "    ssl_certificate_key /etc/ssl/portal/privkey.pem;",
+          "",
+          "    root /var/www/portal/public;",
+          "    index index.html;",
+          "",
+          "    location /api/ {",
+          "        proxy_pass http://127.0.0.1:8080;",
+          "    }",
+          "",
+          "    # Backups live off the web server and are fetched over SSH, never served here",
+          "}"
+        ],
+        "changedLines": [
+          15
+        ]
+      }
     }
   ]
 }

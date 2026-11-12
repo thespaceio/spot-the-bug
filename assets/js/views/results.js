@@ -8,7 +8,7 @@ import { syncHistory } from '../sync.js';
 import { drawShareCard, shareText } from '../draw.js';
 import { SITE_URL } from '../config.js';
 import { boardTable } from './board.js';
-import { startGame } from './round.js';
+import { startGame, startPractice } from './round.js';
 
 export function renderResults(root) {
   const r = ctx.result;
@@ -24,13 +24,14 @@ export function renderResults(root) {
       rounds: sum.rounds, accuracy: sum.accuracy, bestStreak: sum.bestStreak,
       team: ctx.teamStatus.info ? ctx.team.slug : null,
       classCode: r.classInfo?.code || null,
+      practice: r.practice || null,
       owner: isReady() ? auth.userId : null,
       answers: r.results.map((x, i) => ({
         id: x.snippet.id, category: x.snippet.category, line: x.pickedLine ?? null, type: x.pickedType ?? null,
         left: r.answers[i]?.left ?? 0, lineOk: x.score.lineCorrect, typeOk: x.score.typeCorrect, points: x.score.points,
       })),
     });
-    ctx.local.add({
+    if (!r.practice) ctx.local.add({
       name: isReady() ? auth.profile.username : 'You',
       score: sum.total, accuracy: sum.accuracy, bestStreak: sum.bestStreak, level: lvl.id,
     });
@@ -43,13 +44,13 @@ export function renderResults(root) {
 
   const scoreEl = h('span', { class: 'big-score', text: '0' });
   const postPanel = h('section', { class: 'panel card post-panel', 'aria-labelledby': 'post-title' });
-  const renderPost = () => fill(postPanel, r.classInfo ? classPostContents(r, renderPost) : postContents(r));
+  const renderPost = () => fill(postPanel, r.practice ? practiceContents(r) : r.classInfo ? classPostContents(r, renderPost) : postContents(r));
   renderPost();
   const off = onAuthChange(() => { if (!r.posted) renderPost(); });
 
   fill(root,
     h('div', { class: 'results-hero' },
-      h('p', { class: 'eyebrow text-in', text: `GAME COMPLETE · ${lvl.label.toUpperCase()}${r.classInfo ? ` · CLASS ${r.classInfo.code}` : ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
+      h('p', { class: 'eyebrow text-in', text: r.practice ? `PRACTICE COMPLETE · ${(ctx.content.surfaces.get(r.practice)?.label || r.practice).toUpperCase()} · ${lvl.label.toUpperCase()}` : `GAME COMPLETE · ${lvl.label.toUpperCase()}${r.classInfo ? ` · CLASS ${r.classInfo.code}` : ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
       h('h1', { id: 'results-title' }, scoreEl, h('span', { class: 'big-score-unit' }, revealText(' points', 500))),
       h('p', { class: 'lead text-in', style: { '--d': '400ms' }, text: message })),
     h('div', { class: 'stats' },
@@ -77,7 +78,11 @@ export function renderResults(root) {
           h('span', { class: 'review-cat', text: category(x.snippet.category).name }),
           h('span', { class: 'review-pts', text: `+${x.score.points}` }));
       }))),
-    r.classInfo
+    r.practice
+      ? h('div', { class: 'actions' },
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startPractice(lvl.id, r.practice), text: 'Practise again' }),
+        h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => startGame(lvl.id), text: `Play a full ${lvl.label} game` }))
+      : r.classInfo
       ? h('div', { class: 'actions' },
         h('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.go('class', { code: r.classInfo.code }), text: 'Back to the class' }))
       : h('div', { class: 'actions' },
@@ -135,6 +140,14 @@ function sharePanel(r) {
 function stat(label, value, i) {
   return h('div', { class: 'stat card rise-in', style: { '--i': i } },
     h('span', { class: 'stat-value', text: value }), h('span', { class: 'stat-label', text: label }));
+}
+
+// Practice games stay off the scoreboard and the certificate.
+function practiceContents(r) {
+  const kind = ctx.content.surfaces.get(r.practice);
+  return [h('h2', { id: 'post-title', text: 'Practice game' }),
+    h('p', { class: 'muted', text: `${kind?.label || 'This kind of code'} only, ${r.summary.rounds} rounds. Practice counts towards your Progress, but not the scoreboard or the certificate.` }),
+    h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('progress') }, 'See your progress by kind of code ', icon('arrow', 'icon icon-sm'))];
 }
 
 // A class game goes to the class board (not the public scoreboard), once.

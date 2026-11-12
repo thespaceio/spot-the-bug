@@ -15,7 +15,7 @@ export function renderAbout(root) {
       h('span', { hidden: true }),
       h('section', { class: 'panel card' },
         h('h2', { text: 'How it works' }),
-        h('p', { text: 'Every round is a short piece of backend code in JavaScript, Python or PHP with one security flaw, set in places like a fintech transfer endpoint, a school results portal or a POS agent API. Click the vulnerable line, name the flaw, then compare the vulnerable code with the fixed version.' }),
+        h('p', { text: 'Every round is a short piece of code with one security flaw: backend code in JavaScript, Python or PHP, a mobile app in Kotlin or Flutter, or a config file such as Firebase rules, a Dockerfile or a GitHub Actions workflow. They are set in places like a fintech transfer endpoint, a school results portal, a POS agent API or a wallet app. Click the vulnerable line, name the flaw, then compare the vulnerable code with the fixed version.' }),
         h('ul', { class: 'about-levels' }, Object.values(LEVELS).map((l) =>
           h('li', {}, h('strong', { text: l.label }), ` · ${l.seconds}s a round · ×${l.multiplier} points · ${l.blurb}`)))),
       h('section', { class: 'panel card' },

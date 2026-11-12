@@ -30,7 +30,8 @@ export async function loadContent(fetchJson, base = 'data/') {
   const packs = await Promise.all(manifest.packs.map((p) => fetchJson(`${base}${p.file}`)));
   const snippets = packs.flatMap((p) => (p.snippets || []).map((s) => ({ ...s, pack: p.pack })));
   const categories = new Map(cats.categories.map((c) => [c.id, c]));
-  return { categories, snippets };
+  const surfaces = new Map((cats.surfaces || []).map((x) => [x.id, x]));
+  return { categories, snippets, surfaces };
 }
 
 export function countByLevel(snippets) {
@@ -39,32 +40,64 @@ export function countByLevel(snippets) {
   return counts;
 }
 
+/** Where a snippet's code lives: backend (servers and APIs), mobile (apps) or config (cloud and build files). */
+export const surfaceOf = (snippet) => snippet.surface || 'backend';
+export const SURFACE_IDS = ['backend', 'mobile', 'config'];
+
 // The answer choices for one round: the right type plus distractors.
-// Curated distractors on the snippet are used first, then random fill.
+// Curated distractors on the snippet are used first; the rest are flaw types
+// that occur in the same kind of code, so a mobile round can't be answered by
+// spotting the only mobile-sounding option. Other types fill in last.
 export function buildOptions(snippet, categories, count, rng = Math.random) {
   const all = [...categories.keys()];
   const want = Math.min(count, all.length);
+  const surface = surfaceOf(snippet);
+  const sameSurface = all.filter((id) => (categories.get(id).surfaces || ['backend']).includes(surface));
   const picked = [snippet.category];
-  for (const d of shuffle(snippet.distractors || [], rng)) {
-    if (picked.length >= want) break;
-    if (d !== snippet.category && categories.has(d) && !picked.includes(d)) picked.push(d);
+  const add = (id) => {
+    if (picked.length < want && id !== snippet.category && categories.has(id) && !picked.includes(id)) picked.push(id);
+  };
+  const curated = shuffle(snippet.distractors || [], rng);
+  const sameShuffled = shuffle(sameSurface, rng);
+  if (surface !== 'backend') {
+    // Mobile and config rounds: at least two wrong answers from the same kind of
+    // code (curated ones first), so the right answer doesn't stand out by its kind.
+    const ownKind = (id) => sameSurface.includes(id);
+    for (const id of [...curated.filter(ownKind), ...sameShuffled]) {
+      if (picked.filter(ownKind).length > 2 || picked.length >= want) break;   // the right answer counts as one
+      add(id);
+    }
   }
-  for (const id of shuffle(all, rng)) {
-    if (picked.length >= want) break;
-    if (!picked.includes(id)) picked.push(id);
-  }
+  for (const id of [...curated, ...sameShuffled, ...shuffle(all, rng)]) add(id);
   return shuffle(picked, rng);
 }
 
+const toRounds = (list, categories, level, rng) => list.map((snippet, index) => ({
+  index,
+  snippet,
+  options: buildOptions(snippet, categories, level.options, rng),
+}));
+
+// A full game mixes the kinds of code: at least one mobile and one config
+// snippet whenever the level has them, then the rest drawn at random.
 export function buildGame({ snippets, categories, level, rounds, rng = Math.random }) {
-  const pool = snippets.filter((s) => s.difficulty === level.id);
-  return shuffle(pool, rng)
-    .slice(0, rounds)
-    .map((snippet, index) => ({
-      index,
-      snippet,
-      options: buildOptions(snippet, categories, level.options, rng),
-    }));
+  const pool = shuffle(snippets.filter((s) => s.difficulty === level.id), rng);
+  const picked = [];
+  for (const surface of ['mobile', 'config']) {
+    const first = pool.find((s) => surfaceOf(s) === surface && !picked.includes(s));
+    if (first && picked.length < rounds) picked.push(first);
+  }
+  for (const s of pool) {
+    if (picked.length >= rounds) break;
+    if (!picked.includes(s)) picked.push(s);
+  }
+  return toRounds(shuffle(picked, rng), categories, level, rng);
+}
+
+/** Practice one kind of code at one level: every snippet of that kind, in a random order. */
+export function buildPractice({ snippets, categories, level, surface, rounds = 10, rng = Math.random }) {
+  const pool = snippets.filter((s) => s.difficulty === level.id && surfaceOf(s) === surface);
+  return toRounds(shuffle(pool, rng).slice(0, rounds), categories, level, rng);
 }
 
 /** A repeatable random number generator (mulberry32): the same seed gives the same numbers. */

@@ -203,8 +203,8 @@ export async function drawCertificate(progress, displayName, reference = null) {
 
   ctx.fillStyle = INK_MUTED;
   ctx.font = '400 31px "Space Grotesk", sans-serif';
-  ctx.fillText('completed all three levels of Spot the Bug, finding security flaws from the OWASP Top 10', cx, 768);
-  ctx.fillText('in JavaScript, Python and PHP code, with at least 80% accuracy at every level.', cx, 814);
+  ctx.fillText('completed all three levels of Spot the Bug, finding OWASP Top 10 security flaws in backend', cx, 768);
+  ctx.fillText('code, mobile apps and cloud configuration, with at least 80% accuracy at every level.', cx, 814);
 
   const boxW = 440;
   const gap = 40;
@@ -269,7 +269,7 @@ export const CERTIFICATE_ACCURACY = 80;
 export function certificateProgress(games) {
   const levels = {};
   for (const id of Object.keys(LEVELS)) {
-    const at = games.filter((g) => g.level === id && g.rounds === 10);
+    const at = games.filter((g) => g.level === id && g.rounds === 10 && !g.practice);   // practice games don't count
     const best = at.slice().sort((a, b) => b.accuracy - a.accuracy || b.score - a.score)[0] || null;
     const passedWith = at.filter((g) => g.accuracy >= CERTIFICATE_ACCURACY).sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] || null;
     levels[id] = { best, passedWith };

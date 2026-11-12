@@ -6,8 +6,8 @@ import { nextGameNightLabel, GAME_NIGHT_URL } from '../gamenight.js';
 import { ctx, isOpen } from '../context.js';
 import { onlineEnabled, fetchBoard, liveUpdates } from '../online.js';
 import { heroSlides } from './slides.js';
-import { liveDot, boardTable } from './board.js';
-import { startGame } from './round.js';
+import { liveDot, boardTable, segmented } from './board.js';
+import { startGame, startPractice } from './round.js';
 
 export function renderHome(root) {
   const cleanups = [];
@@ -38,6 +38,7 @@ export function renderHome(root) {
         h('li', {}, h('strong', { text: n }), n === 1 ? ' snippet' : ' snippets'),
         h('li', {}, h('strong', { text: `${lvl.seconds}s` }), ' per round'),
         h('li', {}, h('strong', { text: lvl.options }), ' answer choices')),
+      h('p', { class: 'level-kinds', text: 'Every game mixes backend, mobile and config code' }),
       action);
   });
 
@@ -67,6 +68,7 @@ export function renderHome(root) {
     h('section', { id: 'levels', class: 'levels-section', 'aria-labelledby': 'levels-title' },
       pageHead({ eyebrow: 'SPACEIO // SECURE CODE', title: 'Choose your level', level: 'h2', id: 'levels-title' }),
       h('div', { class: 'levels' }, levelCards)),
+    practiceSection(),
     h('div', { class: 'home-grid' },
       onlineEnabled() ? topPlayers(cleanups) : null,
       h('section', { class: 'panel card' },
@@ -83,6 +85,32 @@ export function renderHome(root) {
   return () => cleanups.forEach((fn) => fn());
 }
 
+// Practice one kind of code at a chosen level. Practice games count towards
+// Progress, not the scoreboard or the certificate (like LureLens's practice by channel).
+const practiceChoice = { level: 'beginner' };
+const KIND_ICON = { backend: 'code', mobile: 'phone', config: 'cloud' };
+function practiceSection() {
+  const surfaces = [...ctx.content.surfaces.values()];
+  const count = (id) => ctx.content.snippets.filter((s) => (s.surface || 'backend') === id && s.difficulty === practiceChoice.level).length;
+  const grid = h('div', { class: 'practice-grid' });
+  const draw = () => fill(grid, surfaces.map((sf, i) => {
+    const n = count(sf.id);
+    return h('article', { class: 'practice-card card rise-in', style: { '--i': i } },
+      h('div', { class: 'practice-head' }, icon(KIND_ICON[sf.id] || 'code', 'icon icon-green'), h('h3', { text: sf.label })),
+      h('p', { class: 'muted', text: sf.summary }),
+      h('button', {
+        type: 'button', class: 'btn btn-ghost', disabled: !isOpen() || !n,
+        onclick: () => startPractice(practiceChoice.level, sf.id),
+      }, isOpen() ? `Practise ${n} ${LEVELS[practiceChoice.level].label.toLowerCase()} snippets` : 'Opens on Friday'));
+  }));
+  draw();
+  return h('section', { class: 'practice-section', 'aria-labelledby': 'practice-title' },
+    pageHead({ eyebrow: 'SPACEIO // PRACTICE', title: 'Practise one kind of code', level: 'h2', id: 'practice-title',
+      lead: 'Drill backend, mobile or config snippets on their own. Practice games count towards your Progress, not the scoreboard or certificate.' }),
+    segmented('Practice level', Object.values(LEVELS).map((l) => ({ id: l.id, label: l.label })), practiceChoice.level, (id) => { practiceChoice.level = id; draw(); }),
+    grid);
+}
+
 // The title stage: the name and the way in on the left; on the right, the 3D
 // mark from the world behind the page (assets/js/world.js), or a still mark
 // when 3D is off. It picks up where the opening scene ends.
@@ -91,7 +119,7 @@ function titleStage(onPlay) {
     h('div', { class: 'stage-copy' },
       h('p', { class: 'eyebrow text-in', text: 'TH3 SPACEIO // SECURE CODE REVIEW' }),
       h('h1', { id: 'stage-title', class: 'stage-title' }, revealText('Spot the Bug', 150)),
-      h('p', { class: 'lead text-in', style: { '--d': '550ms' }, text: 'Find the vulnerable line before the clock runs out, name the flaw, then see the fix. Thirty original snippets of JavaScript, Python and PHP, from fintech transfers to school portals.' }),
+      h('p', { class: 'lead text-in', style: { '--d': '550ms' }, text: 'Find the vulnerable line before the clock runs out, name the flaw, then see the fix. Sixty original snippets across backend code, mobile apps and cloud config, from fintech transfers to school portals.' }),
       h('div', { class: 'btn-row text-in', style: { '--d': '750ms' } },
         h('button', { type: 'button', class: 'btn btn-primary btn-lg', onclick: onPlay }, icon('play', 'icon icon-sm'), 'Play now'),
         h('button', { type: 'button', class: 'btn btn-ghost btn-lg', onclick: () => ctx.go('scoreboard') }, icon('trophy', 'icon icon-sm'), 'Scoreboard')),

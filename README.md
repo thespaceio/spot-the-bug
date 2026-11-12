@@ -2,11 +2,22 @@
 
 A timed secure coding game for developers, by **Th3 SpaceIO**. Sister product to [LureLens](https://thespaceio.github.io/LureLens/).
 
-Each round shows a short piece of backend code with one security flaw. The player clicks the vulnerable line before the timer runs out, names the vulnerability type, then sees an explanation and the fixed version side by side.
+Each round shows a short piece of code with one security flaw: backend code, a mobile app, or a config or cloud file. The player clicks the vulnerable line before the timer runs out, names the vulnerability type, then sees an explanation and the fixed version side by side.
 
 **LEARN. BUILD. SECURE.**
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
+
+## What's new in v0.11.0
+
+- **Mobile apps and config and cloud.** 30 new snippets, so 60 in all, 20 per level:
+  - **Mobile apps (15):** Kotlin (Android), Dart (Flutter) and the Android manifest. Flaw types mapped to the [OWASP Mobile Top 10:2024](https://owasp.org/www-project-mobile-top-10/): insecure data storage (M9), insecure communication / TLS (M5), sensitive data in logs (M6), unsafe WebView (M4) and exposed app components (M8).
+  - **Config and cloud (15):** Firebase and Supabase rules, Dockerfiles, GitHub Actions, Kubernetes and nginx. Flaw types mapped to OWASP Top 10:2025: permissive data rules (A01), secrets exposed in build or deploy (A02), untrusted pipeline code (A03), excessive privileges (A02) and exposed files or backups (A02).
+- **Every game mixes kinds of code:** at least one mobile and one config snippet in every game of 10, and in every class. Mobile code shows in a phone frame and config files with their path. In mobile and config rounds at least two of the wrong answers are from the same kind of code, so the right answer doesn't stand out.
+- **Practice by kind** (home page): pick a level and play only backend, only mobile or only config snippets. Practice counts towards Progress, not the scoreboard or the certificate.
+- **Progress by kind of code**, and practice and class games are labelled in recent games.
+- The answer key now records each snippet's kind (`supabase/migrations/20261112090000_arcade_mobile_config.sql`). Scoring is unchanged.
+- Syntax highlighting for Kotlin, Dart, XML, rules files, SQL, Dockerfile, YAML and nginx.
 
 ## What's new in v0.10.0
 
@@ -63,7 +74,11 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 
 - Three levels, all open: Beginner, Intermediate and Advanced
 - 10 timed rounds per game, score, streaks and a per round breakdown
-- 30 original snippets in JavaScript (Node/Express), Python (Flask) and PHP: 10 per level, each level covering all 10 vulnerability types once
+- 60 original snippets, 20 per level, each level covering all 20 vulnerability types once:
+  - 30 backend snippets in JavaScript (Node/Express), Python (Flask) and PHP
+  - 15 mobile app snippets in Kotlin, Dart (Flutter) and Android manifest XML
+  - 15 config and cloud snippets: Firebase and Supabase rules, Dockerfiles, GitHub Actions, Kubernetes and nginx
+- Every game mixes in at least one mobile and one config snippet; practise one kind on its own from the home page
 - Intermediate snippets include a partial defence (an allowlist, a filter, a role check, an env variable) that looks safe but misses the real flaw
 - Advanced snippets hide the flaw in code that looks finished: second order SQL injection, `javascript:` links that survive escaping, zip slip, a `startswith` URL check, `yaml.Loader`, a cumulative refund rule and a debug header
 - Explanation, fix summary and vulnerable vs fixed code after every round
@@ -72,7 +87,7 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 - Private team boards for licensed companies and bootcamps, opened with a secret team link
 - Scores also saved on the device, used when the online board can't be reached
 - Keyboard play: ↑ ↓ to move between lines, Enter to select, number keys to pick a type, L to lock in
-- Progress per level and flaw type, synced to the account when signed in
+- Progress per level, flaw type and kind of code, synced to the account when signed in
 - Certificate for 80%+ at every level, with online checking (`?cert=REF`) and Add to LinkedIn
 - Share card, pause, report a mistake, What's new, offline play
 - Free classroom mode with a shared game per class, a live class board, a debrief and a projector view
@@ -110,8 +125,8 @@ service-worker.js             offline copy of the game (file list kept by script
 assets/css/styles.css         brand tokens and layout
 assets/img/                   logo mark, favicon and app icons
 assets/js/config.js           levels, timers, scoring numbers
-assets/js/engine.js           pure game logic (no DOM): rounds, options, scoring, summary
-assets/js/highlight.js        safe syntax highlighting (textContent only)
+assets/js/engine.js           pure game logic (no DOM): rounds, practice, options, scoring, summary
+assets/js/highlight.js        safe syntax highlighting (textContent only), 13 languages
 assets/js/storage.js          this device: scoreboard, game history, settings
 assets/js/app.js              app shell: menu, screens, links, back button, start-up
 assets/js/context.js          state shared between screens
@@ -130,9 +145,9 @@ assets/js/tilt.js             cards that lean toward the mouse
 assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
-data/categories.json          the 10 vulnerability types, mapped to OWASP Top 10:2025
+data/categories.json          the 20 vulnerability types (OWASP Top 10:2025 and Mobile Top 10:2024) and the 3 kinds of code
 data/snippets/*.json          snippet packs
-scripts/validate-snippets.mjs content checks
+scripts/validate-snippets.mjs content checks, including languages allowed for each kind of code
 scripts/test-engine.mjs       scoring and round building tests
 scripts/answer-key-sql.mjs    prints SQL that updates the online answer key
 scripts/test-progress.mjs     Progress and certificate rule tests
@@ -149,6 +164,7 @@ Add an object to the right pack in `data/snippets/`. No game code changes are ne
 {
   "id": "INT-001",
   "difficulty": "intermediate",
+  "surface": "backend",
   "language": "javascript",
   "framework": "Express",
   "title": "Short name players will see",
@@ -174,8 +190,10 @@ Add an object to the right pack in `data/snippets/`. No game code changes are ne
 | --- | --- |
 | `id` | `BEG-`, `INT-` or `ADV-` plus three digits, unique |
 | `difficulty` | `beginner`, `intermediate` or `advanced` (this decides the level, not the file) |
-| `language` | `javascript`, `python` or `php` |
-| `category` | an `id` from `data/categories.json` |
+| `surface` | `backend`, `mobile` or `config` (optional, defaults to `backend`) |
+| `file` | the file's path, for example `android/app/src/main/AndroidManifest.xml`; required for `mobile` and `config` |
+| `language` | backend: `javascript`, `python` or `php`; mobile: `kotlin`, `dart` or `xml`; config: `rules`, `sql`, `dockerfile`, `yaml` or `nginx` |
+| `category` | an `id` from `data/categories.json` whose `surfaces` include this snippet's `surface` |
 | `code` | 5 to 25 lines, one string per line, spaces not tabs |
 | `vulnerableLine` | 1 based line number of the flaw |
 | `acceptLines` | optional, other lines that also count as correct (for a flaw that spans two lines); keep to two or fewer |
@@ -187,6 +205,7 @@ Content rules:
 - Write every snippet fresh. Don't copy code from other training sites.
 - Exactly one intended flaw. Read the rest of the snippet as an attacker would and remove anything that could be a second answer (missing auth, unchecked ownership, unescaped output).
 - Avoid line numbers inside `explanation`; the game highlights the line for you, and numbers go stale when code is edited.
+- Use the fictional brand SparkPay and `.example` domains for mobile and config snippets, never a real company.
 - Never use a real looking live key format from a real provider (for example `sk_live_`). GitHub push protection may block the push, and it teaches nothing extra.
 - Run `npm test` before you commit.
 - Update the online answer key (next step). Until you do, games that include the new snippet can't be posted online; players still see their score and it saves on their device.

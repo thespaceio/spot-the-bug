@@ -66,7 +66,7 @@ const VISUALS = {
 const SLIDES = [
   { tag: 'THE GAME', title: 'Can you spot the vulnerable line before the clock runs out?', sub: '30 short pieces of backend code, each with one security flaw. Three levels, one clock.', visual: 'game' },
   { tag: 'FINTECH', title: 'This transfer endpoint looks fine. Is it?', sub: 'Negative amounts, missing ownership checks, leaked payment keys. The bugs that drain wallets hide in ordinary code.', visual: 'fintech' },
-  { tag: 'OWASP TOP 10', title: 'SQL injection, SSRF or path traversal? Name the flaw.', sub: 'Ten flaw types from the OWASP Top 10:2025, in JavaScript, Python and PHP.', visual: 'owasp' },
+  { tag: 'OWASP TOP 10', title: 'SQL injection, SSRF or path traversal? Name the flaw.', sub: 'Twenty flaw types from the OWASP Top 10:2025 and the OWASP Mobile Top 10, in backend code, mobile apps and cloud config.', visual: 'owasp' },
   { tag: 'THE FIX', title: 'See the vulnerable line next to the fixed one.', sub: 'Every round ends with what went wrong, how an attacker would use it, and the fix.', visual: 'fix' },
   { tag: 'LIVE SCOREBOARD', title: 'Sign in or quick join, then climb the live board.', sub: 'One account for Spot the Bug and LureLens. Quick join needs nothing but a username.', visual: 'board' },
   { tag: 'CERTIFICATE', title: 'Score 80% at every level. Earn the certificate.', sub: 'Print it, add it to LinkedIn, and let anyone check it online with its reference.', visual: 'cert' },

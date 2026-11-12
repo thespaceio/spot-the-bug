@@ -7,70 +7,224 @@
       "name": "SQL Injection",
       "owasp": "A05:2025 Injection",
       "cwe": "CWE-89",
-      "summary": "User input is glued into a SQL string, so the input can change the query itself."
+      "summary": "User input is glued into a SQL string, so the input can change the query itself.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "xss",
       "name": "Cross-Site Scripting (XSS)",
       "owasp": "A05:2025 Injection",
       "cwe": "CWE-79",
-      "summary": "User input is written into a page without encoding, so a browser runs it as markup or script."
+      "summary": "User input is written into a page without encoding, so a browser runs it as markup or script.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "access-control",
       "name": "Broken Access Control / IDOR",
       "owasp": "A01:2025 Broken Access Control",
       "cwe": "CWE-639",
-      "summary": "The server trusts an ID from the request and never checks the record belongs to the caller."
+      "summary": "The server trusts an ID from the request and never checks the record belongs to the caller.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "hardcoded-secret",
       "name": "Hardcoded Secret",
       "owasp": "A07:2025 Authentication Failures",
       "cwe": "CWE-798",
-      "summary": "A key, token or password sits in source code, where everyone with repo access can read it."
+      "summary": "A key, token or password sits in source code, where everyone with repo access can read it.",
+      "surfaces": [
+        "backend",
+        "mobile",
+        "config"
+      ]
     },
     {
       "id": "weak-hashing",
       "name": "Weak Password Hashing",
       "owasp": "A04:2025 Cryptographic Failures",
       "cwe": "CWE-916",
-      "summary": "Passwords are stored with a fast, unsalted hash that attackers can crack at huge speed."
+      "summary": "Passwords are stored with a fast, unsalted hash that attackers can crack at huge speed.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "path-traversal",
       "name": "Path Traversal",
       "owasp": "A01:2025 Broken Access Control",
       "cwe": "CWE-22",
-      "summary": "A file path built from user input can climb out of the intended folder with ../ sequences."
+      "summary": "A file path built from user input can climb out of the intended folder with ../ sequences.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "ssrf",
       "name": "Server-Side Request Forgery (SSRF)",
       "owasp": "A01:2025 Broken Access Control",
       "cwe": "CWE-918",
-      "summary": "The server fetches any URL a user supplies, including internal services and cloud metadata."
+      "summary": "The server fetches any URL a user supplies, including internal services and cloud metadata.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "deserialization",
       "name": "Insecure Deserialisation",
       "owasp": "A08:2025 Software or Data Integrity Failures",
       "cwe": "CWE-502",
-      "summary": "Untrusted bytes are turned back into live objects, which can run attacker-chosen code."
+      "summary": "Untrusted bytes are turned back into live objects, which can run attacker-chosen code.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "input-validation",
       "name": "Missing Input Validation",
       "owasp": "A06:2025 Insecure Design",
       "cwe": "CWE-20",
-      "summary": "A value is used without checking its range, type or format, so business rules can be broken."
+      "summary": "A value is used without checking its range, type or format, so business rules can be broken.",
+      "surfaces": [
+        "backend"
+      ]
     },
     {
       "id": "verbose-errors",
       "name": "Verbose Error Messages",
       "owasp": "A10:2025 Mishandling of Exceptional Conditions",
       "cwe": "CWE-209",
-      "summary": "Errors return stack traces, queries or internals that map the system for an attacker."
+      "summary": "Errors return stack traces, queries or internals that map the system for an attacker.",
+      "surfaces": [
+        "backend"
+      ]
+    },
+    {
+      "id": "insecure-storage",
+      "name": "Insecure Data Storage",
+      "owasp": "M9:2024 Insecure Data Storage (Mobile)",
+      "cwe": "CWE-312",
+      "summary": "Sensitive data is saved on the phone in plain files or shared storage that other apps, backups or a rooted phone can read.",
+      "surfaces": [
+        "mobile"
+      ]
+    },
+    {
+      "id": "insecure-transport",
+      "name": "Insecure Communication (TLS)",
+      "owasp": "M5:2024 Insecure Communication (Mobile)",
+      "cwe": "CWE-295",
+      "summary": "The app accepts certificates it shouldn't, so someone on the same network can read and change its traffic.",
+      "surfaces": [
+        "mobile"
+      ]
+    },
+    {
+      "id": "sensitive-logging",
+      "name": "Sensitive Data in Logs",
+      "owasp": "M6:2024 Inadequate Privacy Controls (Mobile)",
+      "cwe": "CWE-532",
+      "summary": "PINs, tokens or personal data are written to logs or crash reports that other people and tools can read.",
+      "surfaces": [
+        "mobile",
+        "backend"
+      ]
+    },
+    {
+      "id": "unsafe-webview",
+      "name": "Unsafe WebView",
+      "owasp": "M4:2024 Insufficient Input/Output Validation (Mobile)",
+      "cwe": "CWE-749",
+      "summary": "A WebView with JavaScript and an app bridge can be pointed at pages the app doesn't control.",
+      "surfaces": [
+        "mobile"
+      ]
+    },
+    {
+      "id": "exported-component",
+      "name": "Exposed App Component",
+      "owasp": "M8:2024 Security Misconfiguration (Mobile)",
+      "cwe": "CWE-926",
+      "summary": "An activity, receiver or provider is open to every other app on the phone, skipping the app's own checks.",
+      "surfaces": [
+        "mobile"
+      ]
+    },
+    {
+      "id": "open-rules",
+      "name": "Permissive Data Rules",
+      "owasp": "A01:2025 Broken Access Control",
+      "cwe": "CWE-284",
+      "summary": "Database or storage rules let people read or change data that isn't theirs.",
+      "surfaces": [
+        "config"
+      ]
+    },
+    {
+      "id": "secret-leak",
+      "name": "Secret Exposed in Build or Deploy",
+      "owasp": "A02:2025 Security Misconfiguration",
+      "cwe": "CWE-538",
+      "summary": "A key or password ends up in an image, artifact or file that far more people can reach than should.",
+      "surfaces": [
+        "config"
+      ]
+    },
+    {
+      "id": "supply-chain",
+      "name": "Untrusted Pipeline Code",
+      "owasp": "A03:2025 Software Supply Chain Failures",
+      "cwe": "CWE-829",
+      "summary": "The build runs code from somewhere you don't control, with your secrets and permissions.",
+      "surfaces": [
+        "config"
+      ]
+    },
+    {
+      "id": "excess-privilege",
+      "name": "Excessive Privileges",
+      "owasp": "A02:2025 Security Misconfiguration",
+      "cwe": "CWE-250",
+      "summary": "A container or service account gets far more power than its job needs, so one bug becomes a takeover.",
+      "surfaces": [
+        "config"
+      ]
+    },
+    {
+      "id": "exposed-files",
+      "name": "Exposed Files or Backups",
+      "owasp": "A02:2025 Security Misconfiguration",
+      "cwe": "CWE-552",
+      "summary": "The web server hands out files that were never meant to be public: backups, .env files, source code.",
+      "surfaces": [
+        "config"
+      ]
+    }
+  ],
+  "mobileEdition": "OWASP Mobile Top 10:2024",
+  "surfaces": [
+    {
+      "id": "backend",
+      "name": "Backend",
+      "label": "Backend code",
+      "summary": "Web servers and APIs in JavaScript (Node/Express), Python (Flask) and PHP."
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile",
+      "label": "Mobile apps",
+      "summary": "Android (Kotlin) and Flutter (Dart) apps, and the Android manifest."
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "label": "Config and cloud",
+      "summary": "Firebase and Supabase rules, Dockerfiles, GitHub Actions, Kubernetes and nginx."
     }
   ]
 }

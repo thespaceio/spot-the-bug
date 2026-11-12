@@ -130,7 +130,7 @@ piece("linkedin-launch-post", 1200, 627, 2, f"""
 <div class="logo" style="position:absolute;left:64px;top:56px;width:290px">{LOGO}</div>
 <p class="eyebrow" style="position:absolute;left:64px;top:150px;font-size:15px">NEW FROM TH3 SPACEIO · FREE TO PLAY</p>
 <h1 style="position:absolute;left:62px;top:186px;width:560px;font-size:56px;line-height:1.04;letter-spacing:-.03em;color:#fff">Can you spot the bug before the clock does?</h1>
-<p class="muted" style="position:absolute;left:64px;top:420px;width:540px;font-size:21px;line-height:1.45">A secure coding game for developers. Thirty original snippets in JavaScript, Python and PHP, three levels, one flaw each.</p>
+<p class="muted" style="position:absolute;left:64px;top:420px;width:540px;font-size:21px;line-height:1.45">A secure coding game for developers. Sixty original snippets across backend code, mobile apps and cloud config, one flaw each.</p>
 <div style="position:absolute;left:64px;top:528px;display:flex;align-items:center;gap:22px"><span class="btn" style="font-size:22px">Play free</span><span class="url" style="font-size:19px">{HOST}</span></div>
 <div class="tilt" style="position:absolute;left:676px;top:150px;width:470px;font-size:15px">{code_card(TRANSFERS, 'transfers.js', 'NODE', tag='Line 4 · SQL Injection', dimmed=True)}</div>
 """)
@@ -139,7 +139,7 @@ piece("linkedin-launch-post", 1200, 627, 2, f"""
 piece("og-image", 1200, 630, 1, f"""
 <div class="logo" style="position:absolute;left:64px;top:60px;width:300px">{LOGO}</div>
 <h1 style="position:absolute;left:62px;top:180px;width:560px;font-size:54px;line-height:1.04;letter-spacing:-.03em;color:#fff">Find the vulnerable line before the clock does.</h1>
-<p class="muted" style="position:absolute;left:64px;top:398px;width:520px;font-size:21px;line-height:1.45">The secure coding game by Th3 SpaceIO. Three levels, thirty snippets, the OWASP Top 10.</p>
+<p class="muted" style="position:absolute;left:64px;top:398px;width:520px;font-size:21px;line-height:1.45">The secure coding game by Th3 SpaceIO. Backend, mobile and cloud code, three levels, sixty snippets.</p>
 <p class="url" style="position:absolute;left:64px;top:530px;font-size:19px;color:var(--green)">{HOST}</p>
 <div class="tilt" style="position:absolute;left:676px;top:140px;width:470px;font-size:15px">{code_card(TRANSFERS, 'transfers.js', 'NODE', tag='Line 4 · SQL Injection', dimmed=True)}</div>
 """)
@@ -184,12 +184,12 @@ piece("flyer-a4-launch", A4W, A4H, 3.125, f"""
   </div>
   <p class="eyebrow" style="margin-top:34px;font-size:13px">SPACEIO // SECURE CODE</p>
   <h1 style="margin-top:10px;font-size:62px;line-height:.98;letter-spacing:-.035em;color:#fff">CAN YOU SPOT<br>THE BUG?</h1>
-  <p style="margin-top:14px;font-size:17px;line-height:1.5;color:var(--gray);width:600px">One snippet. One flaw. One clock. Click the vulnerable line, name the flaw, then see the fix, in real backend code from fintech transfers to school results portals.</p>
+  <p style="margin-top:14px;font-size:17px;line-height:1.5;color:var(--gray);width:600px">One snippet. One flaw. One clock. Click the vulnerable line, name the flaw, then see the fix, in real code from fintech transfers to mobile banking apps and cloud config.</p>
   <div class="tilt" style="margin:20px 0 0 40px;width:580px;font-size:12px">{code_card(TRANSFERS, 'transfers.js', 'NODE', tag='Line 4 · SQL Injection · OWASP A05:2025', dimmed=True)}</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:26px">
     {info('3 LEVELS', 'Beginner, Intermediate, Advanced: 60, 45 and 40 seconds a round')}
-    {info('30 SNIPPETS', 'Original code in JavaScript (Node/Express), Python (Flask) and PHP')}
-    {info('OWASP TOP 10', 'Ten flaw types: SQL injection, XSS, IDOR, SSRF, path traversal and more')}
+    {info('60 SNIPPETS', 'Backend, mobile apps (Kotlin, Flutter) and cloud config (Firebase, Docker, CI, nginx)')}
+    {info('OWASP TOP 10 + MOBILE', 'Twenty flaw types, from SQL injection to open database rules')}
     {info('FREE CERTIFICATE', 'Score 80% at every level, add it to LinkedIn, check it online')}
   </div>
   <div class="strip" style="margin-top:10px"><b>GAME NIGHT</b><span>Every Friday the game opens to everyone. Play live with the Th3 SpaceIO community at 6pm WAT.</span></div>
@@ -271,7 +271,7 @@ piece("instagram-answer", 1080, 1350, 2, f"""{ig_head('THE ANSWER')}
 <p class="muted" style="position:absolute;left:64px;top:300px;width:920px;font-size:28px;line-height:1.4">The query runs with the ID from the address bar, not the student who signed in. Change <span class="url">?student_id=</span> and you can read anyone's results.</p>
 <div style="position:absolute;left:64px;right:64px;top:470px;font-size:20.5px">{code_card(RESULTS, 'results.php', 'PHP', tag='Broken Access Control (IDOR) · OWASP A01:2025', after={5: fixed_line}, flaw_at=5, flaw_lock=False)}</div>
 <p style="position:absolute;left:64px;top:1090px;width:920px;font-size:26px;line-height:1.45;color:var(--text)"><b style="color:var(--green)">The fix:</b> use the ID from the session, so a student only ever sees their own results.</p>
-<p style="position:absolute;left:64px;top:1180px;font-size:24px;color:#fff">29 more like this. <span style="color:var(--green)">Play Spot the Bug, free.</span></p>
+<p style="position:absolute;left:64px;top:1180px;font-size:24px;color:#fff">59 more like this. <span style="color:var(--green)">Play Spot the Bug, free.</span></p>
 {ig_foot}""", IGCSS)
 
 # ---------- Story / WhatsApp status 9:16 (2160 x 3840): Game Night ----------

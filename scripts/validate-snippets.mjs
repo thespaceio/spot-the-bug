@@ -10,7 +10,13 @@ const dataDir = path.join(root, 'data');
 const readJson = async (rel) => JSON.parse(await readFile(path.join(dataDir, rel), 'utf8'));
 
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
-const LANGUAGES = ['javascript', 'python', 'php'];
+// Languages per surface: backend code, mobile apps, and config and cloud files.
+const SURFACES = {
+  backend: ['javascript', 'python', 'php'],
+  mobile: ['kotlin', 'dart', 'xml'],
+  config: ['rules', 'sql', 'dockerfile', 'yaml', 'nginx'],
+};
+const LANGUAGES = Object.values(SURFACES).flat();
 const CODE_MIN = 5;
 const CODE_MAX = 25;
 const FIX_MAX = 40;
@@ -22,11 +28,14 @@ const warn = (id, msg) => warnings.push(`${id}: ${msg}`);
 
 const { categories } = await readJson('categories.json');
 const categoryIds = new Set(categories.map((c) => c.id));
+const categorySurfaces = new Map(categories.map((c) => [c.id, c.surfaces || []]));
+for (const c of categories) if (!c.surfaces?.length || c.surfaces.some((x) => !SURFACES[x])) fail(c.id, 'category needs "surfaces" from backend, mobile, config');
 const manifest = await readJson('manifest.json');
 
 const seen = new Set();
 const perLevel = Object.fromEntries(LEVELS.map((l) => [l, 0]));
 const perCategory = {};
+const perSurfaceLevel = {};
 
 const inRange = (n, max) => Number.isInteger(n) && n >= 1 && n <= max;
 const isText = (v, min = 1) => typeof v === 'string' && v.trim().length >= min;
@@ -43,7 +52,13 @@ for (const pack of manifest.packs) {
 
     if (!LEVELS.includes(s.difficulty)) fail(id, `difficulty must be one of ${LEVELS.join(', ')}`);
     else perLevel[s.difficulty] += 1;
-    if (!LANGUAGES.includes(s.language)) fail(id, `language must be one of ${LANGUAGES.join(', ')}`);
+    const surface = s.surface || 'backend';
+    if (!SURFACES[surface]) fail(id, `surface must be one of ${Object.keys(SURFACES).join(', ')}`);
+    else if (!SURFACES[surface].includes(s.language)) fail(id, `language for ${surface} must be one of ${SURFACES[surface].join(', ')}`);
+    if (surface !== 'backend' && !isText(s.file)) fail(id, '"file" (the file path shown above the code) is required outside backend');
+    if (!(categorySurfaces.get(s.category) || []).includes(surface)) fail(id, `category "${s.category}" isn't used for ${surface} snippets`);
+    const key = `${s.difficulty}/${surface}`;
+    perSurfaceLevel[key] = (perSurfaceLevel[key] || 0) + 1;
     if (!categoryIds.has(s.category)) fail(id, `unknown category "${s.category}"`);
     perCategory[s.category] = (perCategory[s.category] || 0) + 1;
 
@@ -87,6 +102,8 @@ for (const pack of manifest.packs) {
 }
 
 console.log(`Snippets: ${seen.size}  (${LEVELS.map((l) => `${l} ${perLevel[l]}`).join(', ')})`);
+console.log(`By level and surface: ${Object.entries(perSurfaceLevel).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+for (const l of LEVELS) for (const sf of ['mobile', 'config']) if (!perSurfaceLevel[`${l}/${sf}`]) fail(l, `no ${sf} snippets: every game needs at least one`);
 console.log(`By category: ${Object.entries(perCategory).map(([k, v]) => `${k} ${v}`).join(', ')}`);
 for (const w of warnings) console.warn(`warn  ${w}`);
 for (const e of errors) console.error(`error ${e}`);

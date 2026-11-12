@@ -2,7 +2,7 @@
 // Mouse and pen only (no effect on touch), and never with reduced motion.
 import { reduceMotion } from './dom.js';
 
-const SELECTOR = '.level-card:not(.is-locked), .stats .stat, .podium-step, .cert-preview, .share-preview, .slide-visual .mini-card, .class-hub > .panel';
+const SELECTOR = '.level-card:not(.is-locked), .practice-card, .stats .stat, .podium-step, .cert-preview, .share-preview, .slide-visual .mini-card, .class-hub > .panel';
 const MAX = 7;   // degrees
 
 export function startTilt() {

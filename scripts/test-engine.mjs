@@ -2,7 +2,7 @@
 // Quick checks for the scoring and round building rules. Run: node scripts/test-engine.mjs
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildGame, buildOptions, scoreRound, summarise, makeRng } from '../assets/js/engine.js';
+import { buildGame, buildOptions, buildPractice, surfaceOf, scoreRound, summarise, makeRng } from '../assets/js/engine.js';
 import { LEVELS, SCORING } from '../assets/js/config.js';
 
 const cats = JSON.parse(await readFile(new URL('../data/categories.json', import.meta.url), 'utf8'));
@@ -24,6 +24,27 @@ for (let seed = 1; seed < 200; seed++) {
 const game = buildGame({ snippets: pack.snippets, categories, level: LEVELS.beginner, rounds: 10, rng: makeRng(7) });
 assert.equal(game.length, 10);
 assert.equal(new Set(game.map((r) => r.snippet.id)).size, 10);
+
+// Every full game mixes the kinds of code: at least one mobile and one config snippet.
+for (const lvl of Object.values(LEVELS)) {
+  const levelPack = JSON.parse(await readFile(new URL(`../data/snippets/${lvl.id}.json`, import.meta.url), 'utf8'));
+  for (let seed = 1; seed < 300; seed++) {
+    const g = buildGame({ snippets: levelPack.snippets, categories, level: lvl, rounds: 10, rng: makeRng(seed) });
+    const kinds = g.map((r) => surfaceOf(r.snippet));
+    assert.equal(g.length, 10);
+    assert.ok(kinds.includes('mobile') && kinds.includes('config'), `seed ${seed} ${lvl.id}: ${kinds}`);
+    // Mobile and config rounds offer at least two wrong answers from their own kind of code
+    for (const r of g.filter((x) => surfaceOf(x.snippet) !== 'backend')) {
+      const same = r.options.filter((id) => id !== r.snippet.category && categories.get(id).surfaces.includes(surfaceOf(r.snippet)));
+      assert.ok(same.length >= Math.min(2, lvl.options - 1), `${r.snippet.id} options ${r.options}`);
+    }
+  }
+  // Practice: one kind of code only.
+  for (const surface of ['backend', 'mobile', 'config']) {
+    const p = buildPractice({ snippets: levelPack.snippets, categories, level: lvl, surface, rng: makeRng(3) });
+    assert.ok(p.length >= 5 && p.every((r) => surfaceOf(r.snippet) === surface), `practice ${lvl.id} ${surface}`);
+  }
+}
 
 const base = { snippet: s, totalSeconds: 60, multiplier: 1 };
 
@@ -92,5 +113,18 @@ assert.equal(r.breakdown.speed, 23);
 // Float noise in the timer doesn't change the result.
 r = scoreRound({ ...base, pickedLine: s.vulnerableLine, pickedType: s.category, secondsLeft: 26.99999, streak: 0 });
 assert.equal(r.tenthsLeft, 270);
+
+// Same total as the server for a game of the new beginner snippets, all clean
+// with 30 of 60 seconds left (checked against arcade_submit_spot_the_bug: 2100).
+{
+  const fresh = pack.snippets.filter((x) => surfaceOf(x) !== 'backend');
+  let streak = 0;
+  const results = fresh.map((sn) => {
+    const sc = scoreRound({ snippet: sn, pickedLine: sn.vulnerableLine, pickedType: sn.category, secondsLeft: 30, totalSeconds: 60, multiplier: 1, streak });
+    streak = sc.newStreak;
+    return { snippet: sn, score: sc };
+  });
+  assert.equal(results.reduce((t, x) => t + x.score.points, 0), 2100);
+}
 
 console.log('Engine tests passed.');

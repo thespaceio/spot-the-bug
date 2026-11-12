@@ -51,3 +51,21 @@ export function totals(games) {
     bestStreak: games.reduce((m, g) => Math.max(m, g.bestStreak || 0), 0),
   };
 }
+
+/**
+ * Clean-find rate per kind of code (backend, mobile, config), from each
+ * game's answers. snippetSurface maps a snippet ID to its kind.
+ */
+export function surfaceStats(games, snippetSurface) {
+  const out = { backend: { seen: 0, clean: 0 }, mobile: { seen: 0, clean: 0 }, config: { seen: 0, clean: 0 } };
+  for (const g of games) {
+    for (const a of g.answers || []) {
+      const kind = snippetSurface.get(a.id) || 'backend';
+      if (!out[kind]) continue;
+      out[kind].seen += 1;
+      if (a.lineOk && a.typeOk) out[kind].clean += 1;
+    }
+  }
+  for (const k of Object.keys(out)) out[k].rate = out[k].seen ? Math.round((out[k].clean / out[k].seen) * 100) : null;
+  return out;
+}

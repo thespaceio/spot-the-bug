@@ -1079,3 +1079,26 @@ html.has-world .stage-copy::before {
   content: ''; position: absolute; z-index: -1; inset: -12% -18% -12% -40%; pointer-events: none;
   background: radial-gradient(closest-side, rgba(10, 22, 40, 0.9), rgba(10, 22, 40, 0.6) 60%, transparent);
 }
+
+/* ================= v0.11: mobile and config snippets, practice by kind ================= */
+.badge-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--green); border-color: var(--green-line); }
+.badge-kind .icon { width: 14px; height: 14px; }
+.panel-file { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; }
+.panel-bar { min-width: 0; }
+/* Mobile code sits in a phone-style frame: a thicker bezel, rounder corners and a notch. */
+.code-panel.kind-mobile { position: relative; border: 6px solid #1A2B44; border-radius: 26px; box-shadow: 0 0 0 1px var(--border-strong), 0 24px 60px -24px rgba(0, 0, 0, 0.6); }
+.code-panel.kind-mobile .panel-bar { padding-top: 18px; }
+.phone-notch { position: absolute; top: 6px; left: 50%; width: 76px; height: 7px; margin-left: -38px; border-radius: 9px; background: #1A2B44; z-index: 1; }
+/* Config files get a dashed file-tab edge. */
+.code-panel.kind-config .panel-bar { border-bottom-style: dashed; }
+.level-kinds { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; color: var(--gray); margin: 0 0 14px; }
+.practice-section { margin: 8px 0 40px; }
+.practice-section .segmented { margin: 4px 0 16px; }
+.practice-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 860px) { .practice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.practice-card { display: grid; gap: 12px; align-content: start; padding: 20px; }
+.practice-card .btn { justify-self: start; }
+.practice-head { display: flex; align-items: center; gap: 10px; }
+.practice-head h3 { margin: 0; font-size: 19px; color: var(--white); }
+.bars-subhead { font-size: 15px; color: var(--white); margin: 22px 0 12px; }
+@media (max-width: 520px) { .code-panel .panel-bar-hint { display: none; } }

@@ -1,6 +1,6 @@
 // The timed round: pick the vulnerable line, name the flaw, see the fix.
 import { LEVELS, ROUNDS_PER_GAME, REPO_URL, CONTACT_EMAIL, APP } from '../config.js';
-import { buildGame, buildClassGame, scoreRound, summarise } from '../engine.js';
+import { buildGame, buildClassGame, buildPractice, surfaceOf, scoreRound, summarise } from '../engine.js';
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
 import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
@@ -22,6 +22,7 @@ const game = {
   paused: false,
   leftMs: 0,          // time left when paused
   classInfo: null,    // set for a class game (everyone plays the same snippets)
+  practice: null,     // 'backend' | 'mobile' | 'config' for a practice game
 };
 let root = null;
 
@@ -37,15 +38,21 @@ export function confirmLeave() {
   return window.confirm("Leave this game? This round won't be saved.");
 }
 
+/** Practice one kind of code at one level (counts towards Progress only). */
+export function startPractice(levelId, surface) {
+  if (!isOpen()) { ctx.go('home'); return; }
+  ctx.go('round', { level: levelId, practice: surface });
+}
+
 /** From a class page: the class's game (same snippets and choices for everyone). */
 export function startClassGame(info) {
   ctx.go('round', { classInfo: info });
 }
 
-export function renderRound(el, { level, classInfo } = {}) {
+export function renderRound(el, { level, classInfo, practice } = {}) {
   root = el;
   if (classInfo) beginClass(classInfo);
-  else if (level || !game.rounds.length) begin(level || 'beginner');
+  else if (level || !game.rounds.length) begin(level || 'beginner', practice || null);
   else renderCurrent();
   document.addEventListener('keydown', onKeys);
   document.addEventListener('visibilitychange', onHidden);
@@ -60,11 +67,13 @@ export function renderRound(el, { level, classInfo } = {}) {
   };
 }
 
-function begin(levelId) {
+function begin(levelId, practice = null) {
   const lvl = LEVELS[levelId];
   game.level = lvl;
   game.classInfo = null;
-  game.rounds = buildGame({ snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME });
+  game.practice = practice;
+  const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME };
+  game.rounds = practice ? buildPractice({ ...args, surface: practice }) : buildGame(args);
   reset();
 }
 
@@ -82,6 +91,7 @@ function beginClass(info) {
   }
   game.level = lvl;
   game.classInfo = info;
+  game.practice = null;
   game.rounds = rounds;
   reset();
 }
@@ -99,8 +109,8 @@ function hud() {
   const total = game.rounds.length;
   return h('div', { class: 'hud card' },
     h('div', { class: 'hud-stats' },
-      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: game.classInfo ? 'Class' : 'Level' }),
-        h('span', { class: 'hud-value', text: game.classInfo ? game.classInfo.code : game.level.label, title: game.classInfo ? `${game.classInfo.name} · ${game.level.label}` : null })),
+      h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: game.classInfo ? 'Class' : game.practice ? 'Practice' : 'Level' }),
+        h('span', { class: 'hud-value', text: game.classInfo ? game.classInfo.code : game.practice ? `${ctx.content.surfaces.get(game.practice)?.name || game.practice} · ${game.level.label}` : game.level.label, title: game.classInfo ? `${game.classInfo.name} · ${game.level.label}` : null })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Round' }), h('span', { class: 'hud-value', text: `${game.i + 1} / ${total}` })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Score' }), h('span', { class: 'hud-value', id: 'hud-score', text: fmt(game.score) })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Streak' }),
@@ -149,15 +159,17 @@ function renderCurrent() {
     hud(),
     h('div', { class: 'snippet-head' },
       h('div', { class: 'badges' },
+        surfaceOf(s) !== 'backend' ? h('span', { class: `badge badge-kind kind-${surfaceOf(s)}` }, icon(surfaceOf(s) === 'mobile' ? 'phone' : 'cloud', 'icon icon-sm'), ctx.content.surfaces.get(surfaceOf(s))?.label || surfaceOf(s)) : null,
         h('span', { class: 'badge', text: LANGUAGE_LABEL[s.language] || s.language }),
         s.framework && s.framework !== LANGUAGE_LABEL[s.language] ? h('span', { class: 'badge', text: s.framework }) : null,
         h('span', { class: 'badge badge-quiet', text: s.id })),
       h('h2', { id: 'round-title', text: s.title }),
       h('p', { class: 'context', text: s.context })),
     h('div', { class: 'round-grid' },
-      h('div', { class: 'code-panel' },
+      h('div', { class: `code-panel kind-${surfaceOf(s)}` },
+        surfaceOf(s) === 'mobile' ? h('div', { class: 'phone-notch', 'aria-hidden': 'true' }) : null,
         h('div', { class: 'panel-bar' },
-          h('span', { class: 'dot' }), h('span', { text: `${s.code.length} lines` }),
+          h('span', { class: 'dot' }), h('span', { class: 'panel-file', text: s.file ? `${s.file} · ${s.code.length} lines` : `${s.code.length} lines` }),
           h('span', { class: 'panel-bar-hint', text: 'Click the vulnerable line' })),
         code),
       h('aside', { class: 'answer-panel card', id: 'answer' },
@@ -448,6 +460,7 @@ function nextRound() {
     saved: false,
     posted: null,
     classInfo: game.classInfo,
+    practice: game.practice,
   };
   game.rounds = [];
   ctx.go('results');

@@ -6,6 +6,17 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.11',
+    title: 'Mobile apps and cloud config',
+    items: [
+      '30 new snippets, so 60 in all: 15 from mobile apps (Kotlin, Flutter and the Android manifest) and 15 from config and cloud (Firebase and Supabase rules, Dockerfiles, GitHub Actions, Kubernetes, nginx).',
+      'Ten new flaw types, from insecure data storage and unsafe WebViews to open database rules and untrusted pipeline code.',
+      'Every game now mixes backend, mobile and config code. Mobile code shows in a phone frame, config files with their real path.',
+      'Practise one kind of code on its own from the home page. Practice counts towards Progress, not the scoreboard.',
+      'Progress shows how you do on each kind of code.',
+    ],
+  },
+  {
     version: '0.10',
     title: 'Spot the Bug in 3D',
     items: [

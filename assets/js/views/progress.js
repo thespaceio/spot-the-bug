@@ -6,7 +6,7 @@ import { ctx, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
 import { onlineEnabled, myCertificate, registerCertificate } from '../online.js';
 import { myGames, syncHistory, syncState, onSync } from '../sync.js';
-import { levelStats, categoryStats, weakSpots, totals } from '../stats.js';
+import { levelStats, categoryStats, weakSpots, totals, surfaceStats } from '../stats.js';
 import { certificateProgress, progressFromOnline, drawCertificate, formatLongDate, CERTIFICATE_ACCURACY } from '../draw.js';
 import { startGame } from './round.js';
 import { prefs } from '../storage.js';
@@ -46,6 +46,7 @@ function page(cleanups) {
   const levels = levelStats(games);
   const cats = categoryStats(games, ctx.content.categories);
   const weak = weakSpots(cats);
+  const kinds = surfaceStats(games, new Map(ctx.content.snippets.map((sn) => [sn.id, sn.surface || 'backend'])));
 
   const statEls = [
     ['Games', t.games], ['Rounds', t.rounds], ['Clean finds', t.clean], ['Accuracy', t.accuracy, '%'], ['Best streak', t.bestStreak],
@@ -74,7 +75,17 @@ function page(cleanups) {
               h('span', { class: 'bar-fill', style: { '--v': `${s.avgAccuracy}%`, '--i': i } })),
             h('span', { class: 'bar-value', text: s.played ? `${s.avgAccuracy}%` : '–' }));
         })),
-        h('p', { class: 'hint', text: 'Average accuracy: rounds where you found the right line and named the right flaw.' })),
+        h('p', { class: 'hint', text: 'Average accuracy: rounds where you found the right line and named the right flaw.' }),
+        h('h3', { class: 'bars-subhead', text: 'By kind of code' }),
+        h('ul', { class: 'bars bars-compact' }, [...ctx.content.surfaces.values()].map((sf, i) => {
+          const st = kinds[sf.id];
+          return h('li', { class: 'bar-row' },
+            h('div', { class: 'bar-label' }, h('strong', { text: sf.label }),
+              h('span', { class: 'muted', text: st.seen ? `${st.clean} of ${st.seen} found` : 'Not seen yet' })),
+            h('div', { class: 'bar', role: 'img', 'aria-label': `${sf.label}: ${st.rate ?? 0}% found cleanly` },
+              h('span', { class: 'bar-fill', style: { '--v': `${st.rate ?? 0}%`, '--i': i + 3 } })),
+            h('span', { class: 'bar-value', text: st.rate === null ? '–' : `${st.rate}%` }));
+        }))),
       h('section', { class: 'panel card' },
         h('h2', { text: 'By flaw type' }),
         h('ul', { class: 'bars bars-compact' }, cats.slice().sort((a, b) => (a.rate ?? 101) - (b.rate ?? 101)).map((c, i) =>
@@ -96,7 +107,7 @@ function page(cleanups) {
         const v = g.accuracy >= 80 ? ['win', `${g.accuracy}%`] : g.accuracy >= 50 ? ['partial', `${g.accuracy}%`] : ['miss', `${g.accuracy}%`];
         return h('li', { class: 'fade-in-row', style: { '--i': i } },
           h('span', { class: `pill pill-${v[0]}`, text: v[1] }),
-          h('span', { class: 'review-title', text: `${LEVELS[g.level]?.label || g.level}${g.team ? ' · team' : ''}${g.posted ? ' · posted' : ''}` }),
+          h('span', { class: 'review-title', text: `${LEVELS[g.level]?.label || g.level}${g.practice ? ` · practice (${g.practice})` : ''}${g.classCode ? ' · class' : ''}${g.team ? ' · team' : ''}${g.posted ? ' · posted' : ''}` }),
           h('span', { class: 'review-cat', text: dateLabel(g.date) }),
           h('span', { class: 'review-pts', text: fmt(g.score) }));
       }))),

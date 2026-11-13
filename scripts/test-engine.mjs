@@ -2,7 +2,7 @@
 // Quick checks for the scoring and round building rules. Run: node scripts/test-engine.mjs
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { buildGame, buildOptions, buildPractice, surfaceOf, scoreRound, summarise, makeRng } from '../assets/js/engine.js';
+import { buildGame, buildOptions, buildPractice, buildFlawPractice, freshFirst, surfaceOf, scoreRound, summarise, makeRng } from '../assets/js/engine.js';
 import { LEVELS, SCORING } from '../assets/js/config.js';
 
 const cats = JSON.parse(await readFile(new URL('../data/categories.json', import.meta.url), 'utf8'));
@@ -125,6 +125,60 @@ assert.equal(r.tenthsLeft, 270);
     return { snippet: sn, score: sc };
   });
   assert.equal(results.reduce((t, x) => t + x.score.points, 0), 2100);
+}
+
+// Fresh snippets first: unseen ones, then the ones seen longest ago.
+{
+  const list = ['A', 'B', 'C', 'D'].map((id) => ({ id }));
+  for (let seed = 1; seed < 50; seed++) {
+    const order = freshFirst(list, ['B', 'A', 'B'], makeRng(seed)).map((x) => x.id);
+    assert.deepEqual(new Set(order.slice(0, 2)), new Set(['C', 'D']));
+    assert.deepEqual(order.slice(2), ['A', 'B']);   // A was seen longer ago than B
+  }
+}
+
+// A second game avoids the first game's snippets (at most one repeat, when the
+// first game used up every mobile or config snippet), and a third reaches for
+// the oldest ones.
+for (const lvl of Object.values(LEVELS)) {
+  const levelPack = JSON.parse(await readFile(new URL(`../data/snippets/${lvl.id}.json`, import.meta.url), 'utf8'));
+  let repeatFree = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const rng = makeRng(seed);
+    const args = { snippets: levelPack.snippets, categories, level: lvl, rounds: 10, rng };
+    const g1 = buildGame(args).map((r) => r.snippet.id);
+    const g2 = buildGame({ ...args, recent: g1 }).map((r) => r.snippet.id);
+    const overlap = g2.filter((id) => g1.includes(id)).length;
+    assert.ok(overlap <= 1, `${lvl.id} seed ${seed}: ${overlap} repeats in the second game`);
+    if (!overlap) repeatFree += 1;
+    const unseen = levelPack.snippets.map((x) => x.id).filter((id) => !g1.includes(id) && !g2.includes(id));
+    const g3 = buildGame({ ...args, recent: [...g2, ...g1] }).map((r) => r.snippet.id);
+    for (const id of unseen) assert.ok(g3.includes(id), 'a third game uses anything still unseen');
+  }
+  assert.ok(repeatFree > 250, `${lvl.id}: most second games have no repeats (${repeatFree}/300)`);
+}
+
+// Practising a flaw: other snippets with that flaw, easiest level first, each
+// round with its own level's choices.
+{
+  const all = [];
+  for (const lvl of Object.values(LEVELS)) {
+    all.push(...JSON.parse(await readFile(new URL(`../data/snippets/${lvl.id}.json`, import.meta.url), 'utf8')).snippets);
+  }
+  const sqli = all.filter((x) => x.category === 'sqli');
+  const rounds = buildFlawPractice({ snippets: all, categories, levels: LEVELS, flaws: ['sqli'], skip: [sqli[0].id], rng: makeRng(3) });
+  assert.equal(rounds.length, sqli.length - 1);
+  assert.ok(rounds.every((r) => r.snippet.category === 'sqli' && r.snippet.id !== sqli[0].id));
+  const order = Object.keys(LEVELS);
+  assert.deepEqual(rounds.map((r) => order.indexOf(r.snippet.difficulty)), rounds.map((r) => order.indexOf(r.snippet.difficulty)).sort());
+  for (const r of rounds) {
+    assert.equal(r.level.id, r.snippet.difficulty);
+    assert.equal(r.options.length, r.level.options);
+    assert.ok(r.options.includes('sqli'));
+  }
+  const many = buildFlawPractice({ snippets: all, categories, levels: LEVELS, flaws: ['xss', 'ssrf', 'open-rules', 'unsafe-webview'], rounds: 10, rng: makeRng(5) });
+  assert.equal(many.length, 10);
+  assert.equal(new Set(many.map((r) => r.snippet.id)).size, 10);
 }
 
 console.log('Engine tests passed.');

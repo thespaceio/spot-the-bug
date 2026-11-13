@@ -78,10 +78,21 @@ const toRounds = (list, categories, level, rng) => list.map((snippet, index) => 
   options: buildOptions(snippet, categories, level.options, rng),
 }));
 
+/**
+ * Snippets the player hasn't seen come first, then the ones seen longest ago.
+ * `recent` lists snippet ids from recent games, the most recent first.
+ */
+export function freshFirst(list, recent = [], rng = Math.random) {
+  const lastSeen = new Map();
+  recent.forEach((id, n) => { if (!lastSeen.has(id)) lastSeen.set(id, n); });
+  const age = (s) => (lastSeen.has(s.id) ? lastSeen.get(s.id) : Number.MAX_SAFE_INTEGER);
+  return shuffle(list, rng).sort((a, b) => age(b) - age(a));   // stable: ties stay shuffled
+}
+
 // A full game mixes the kinds of code: at least one mobile and one config
-// snippet whenever the level has them, then the rest drawn at random.
-export function buildGame({ snippets, categories, level, rounds, rng = Math.random }) {
-  const pool = shuffle(snippets.filter((s) => s.difficulty === level.id), rng);
+// snippet whenever the level has them, then the rest, freshest first.
+export function buildGame({ snippets, categories, level, rounds, recent = [], rng = Math.random }) {
+  const pool = freshFirst(snippets.filter((s) => s.difficulty === level.id), recent, rng);
   const picked = [];
   for (const surface of ['mobile', 'config']) {
     const first = pool.find((s) => surfaceOf(s) === surface && !picked.includes(s));
@@ -94,10 +105,27 @@ export function buildGame({ snippets, categories, level, rounds, rng = Math.rand
   return toRounds(shuffle(picked, rng), categories, level, rng);
 }
 
-/** Practice one kind of code at one level: every snippet of that kind, in a random order. */
-export function buildPractice({ snippets, categories, level, surface, rounds = 10, rng = Math.random }) {
+/** Practice one kind of code at one level, freshest snippets first. */
+export function buildPractice({ snippets, categories, level, surface, rounds = 10, recent = [], rng = Math.random }) {
   const pool = snippets.filter((s) => s.difficulty === level.id && surfaceOf(s) === surface);
-  return toRounds(shuffle(pool, rng).slice(0, rounds), categories, level, rng);
+  return toRounds(shuffle(freshFirst(pool, recent, rng).slice(0, rounds), rng), categories, level, rng);
+}
+
+/**
+ * Practise particular flaw types: other snippets with the same flaws, from
+ * every level, easiest first. Each round keeps its own level's timer and
+ * number of answer choices. `skip` leaves out snippets just played.
+ */
+export function buildFlawPractice({ snippets, categories, levels, flaws, skip = [], rounds = 10, recent = [], rng = Math.random }) {
+  const order = Object.keys(levels);
+  const want = new Set(flaws);
+  const pool = freshFirst(snippets.filter((s) => want.has(s.category) && !skip.includes(s.id) && levels[s.difficulty]), recent, rng)
+    .slice(0, rounds)
+    .sort((a, b) => order.indexOf(a.difficulty) - order.indexOf(b.difficulty));
+  return pool.map((snippet, index) => {
+    const level = levels[snippet.difficulty];
+    return { index, snippet, level, options: buildOptions(snippet, categories, level.options, rng) };
+  });
 }
 
 /** A repeatable random number generator (mulberry32): the same seed gives the same numbers. */
@@ -165,7 +193,7 @@ export function summarise(results, categories) {
   }
   const focus = [...missed.entries()]
     .sort((a, b) => b[1] - a[1])
-    .map(([id, n]) => ({ category: categories.get(id), misses: n }));
+    .map(([id, n]) => ({ id, category: categories.get(id), misses: n }));
   return {
     total,
     rounds: results.length,

@@ -28,6 +28,18 @@ const VISUALS = {
       codeLine(12, 'if ($amountKobo > $balance) {'),
       codeLine(18, 'moveFunds($from, $to, $amountKobo);'))),
 
+  kinds: () => h('div', { class: 'mini-compare' },
+    h('div', { class: 'mini-card' },
+      h('div', { class: 'mini-top' }, h('span', {}, icon('phone', 'icon icon-sm'), ' LoginActivity.kt'), h('span', { text: 'MOBILE' })),
+      h('div', { class: 'mini-code' },
+        codeLine(11, '.putString("agent_id", agentId)'),
+        codeLine(12, '.putString("agent_pin", pin)', 'is-vuln'))),
+    h('div', { class: 'mini-card' },
+      h('div', { class: 'mini-top' }, h('span', {}, icon('cloud', 'icon icon-sm'), ' firestore.rules'), h('span', { text: 'CONFIG' })),
+      h('div', { class: 'mini-code' },
+        codeLine(11, 'match /{document=**} {'),
+        codeLine(12, '  allow read, write: if true;', 'is-vuln')))),
+
   owasp: () => h('div', { class: 'mini-card mini-options' },
     ['SQL Injection', 'Server-Side Request Forgery', 'Path Traversal', 'Broken Access Control'].map((t, i) =>
       h('div', { class: `mini-option${i === 1 ? ' is-right' : ''}` }, i === 1 ? icon('check', 'icon icon-sm') : h('span', { class: 'mini-key', text: i + 1 }), h('span', { text: t })))),
@@ -64,7 +76,8 @@ const VISUALS = {
 };
 
 const SLIDES = [
-  { tag: 'THE GAME', title: 'Can you spot the vulnerable line before the clock runs out?', sub: '30 short pieces of backend code, each with one security flaw. Three levels, one clock.', visual: 'game' },
+  { tag: 'THE GAME', title: 'Can you spot the vulnerable line before the clock runs out?', sub: '60 short pieces of code, each with one security flaw. Three levels, one clock.', visual: 'game' },
+  { tag: 'MOBILE AND CLOUD', title: 'Not just the backend: apps and config too.', sub: 'Kotlin and Flutter apps, Firebase rules, Dockerfiles, GitHub Actions and nginx. Every game mixes them in.', visual: 'kinds' },
   { tag: 'FINTECH', title: 'This transfer endpoint looks fine. Is it?', sub: 'Negative amounts, missing ownership checks, leaked payment keys. The bugs that drain wallets hide in ordinary code.', visual: 'fintech' },
   { tag: 'OWASP TOP 10', title: 'SQL injection, SSRF or path traversal? Name the flaw.', sub: 'Twenty flaw types from the OWASP Top 10:2025 and the OWASP Mobile Top 10, in backend code, mobile apps and cloud config.', visual: 'owasp' },
   { tag: 'THE FIX', title: 'See the vulnerable line next to the fixed one.', sub: 'Every round ends with what went wrong, how an attacker would use it, and the fix.', visual: 'fix' },

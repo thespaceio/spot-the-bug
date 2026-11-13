@@ -6,6 +6,16 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.12',
+    title: 'Practise your weak spots',
+    items: [
+      'Missed a flaw? Every focus area on the results screen now has a Practise button, and Progress has one for each weak spot. Practice uses other snippets with the same flaw, from every level.',
+      "Games now deal snippets you haven't seen yet first, so you see fewer repeats.",
+      'Online games are timed by the server, to keep the scoreboard fair. Play as usual; you can still sign in after a game to post it.',
+      'Easier to read and use: code lines are bigger to tap, text has more contrast, and long lines on phones keep their indentation.',
+    ],
+  },
+  {
     version: '0.11',
     title: 'Mobile apps and cloud config',
     items: [

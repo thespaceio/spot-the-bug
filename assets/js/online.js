@@ -55,12 +55,47 @@ export async function fetchBoard({ level = null, days = null, limit = ONLINE.boa
   }));
 }
 
-/** Sends the answers, not the score: the server works the score out itself. */
-export function postGame({ level, answers, team = null }) {
-  return rpc('arcade_submit_spot_the_bug', { p_name: null, p_level: level, p_answers: answers, ...teamArgs(team) });
+/**
+ * A ranked game, timed by the server. The server notes when each round is
+ * shown, paused, resumed and answered, and the post is scored by its clock,
+ * so the browser can't claim time it didn't take. Calls go one after another;
+ * if one fails twice, the game stays on this device and can't be posted.
+ */
+export function rankedSession(level, snippetIds) {
+  const session = { id: null, broken: !onlineEnabled(), error: null };
+  let chain = session.broken ? Promise.resolve()
+    : rpc('arcade_stb_start', { p_level: level, p_snippets: snippetIds })
+      .then((id) => { session.id = id; })
+      .catch((err) => { session.broken = true; session.error = err; });
+  const step = (fn, args) => {
+    chain = chain.then(async () => {
+      if (session.broken) return;
+      try {
+        await rpc(fn, { p_game: session.id, ...args });
+      } catch {
+        try { await rpc(fn, { p_game: session.id, ...args }); } catch (err) { session.broken = true; session.error = err; }
+      }
+    });
+    return chain;
+  };
+  session.clock = (round, action) => step('arcade_stb_clock', { p_round: round, p_action: action });
+  session.answer = (round, { line, type, left }) => step('arcade_stb_answer', { p_round: round, p_line: line ?? null, p_type: type ?? null, p_left: left ?? 0 });
+  /** Waits for every call to finish: the game's id, or null if it can't be posted. */
+  session.settled = () => chain.then(() => (session.broken ? null : session.id));
+  return session;
 }
 
-/** Confirms a team link: { slug, name, expires_at }. */
+/** Posts a finished ranked game. The server works the score out from its own record. */
+export async function postGame({ session, team = null }) {
+  const id = session ? await session.settled() : null;
+  if (!id) {
+    throw new OnlineError(session?.error?.message && !/offline|reach|load/i.test(session.error.message)
+      ? session.error.message
+      : "This game wasn't connected to the online scoreboard while you played, so it can't be posted.");
+  }
+  return rpc('arcade_stb_post', { p_game: id, ...teamArgs(team) });
+}
+
 export function checkTeam(team) {
   if (!team.key) return Promise.reject(new OnlineError('This team link is missing its key. Ask your organiser for the full link.'));
   return rpc('arcade_team', { p_game: ONLINE.game, p_slug: team.slug, p_key: team.key });

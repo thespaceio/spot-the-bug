@@ -1,10 +1,11 @@
 // The timed round: pick the vulnerable line, name the flaw, see the fix.
 import { LEVELS, ROUNDS_PER_GAME, REPO_URL, CONTACT_EMAIL, APP } from '../config.js';
-import { buildGame, buildClassGame, buildPractice, surfaceOf, scoreRound, summarise } from '../engine.js';
+import { buildGame, buildClassGame, buildPractice, buildFlawPractice, surfaceOf, scoreRound, summarise } from '../engine.js';
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
 import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
-import { newGameId } from '../storage.js';
+import { newGameId, recentSnippetIds } from '../storage.js';
+import { rankedSession } from '../online.js';
 
 const game = {
   level: null,
@@ -22,7 +23,9 @@ const game = {
   paused: false,
   leftMs: 0,          // time left when paused
   classInfo: null,    // set for a class game (everyone plays the same snippets)
-  practice: null,     // 'backend' | 'mobile' | 'config' for a practice game
+  practice: null,     // 'backend' | 'mobile' | 'config' | 'flaws' for a practice game
+  flaws: null,        // the flaw types of a 'flaws' practice game
+  session: null,      // a ranked game's server record (online.js rankedSession)
 };
 let root = null;
 
@@ -44,15 +47,21 @@ export function startPractice(levelId, surface) {
   ctx.go('round', { level: levelId, practice: surface });
 }
 
+/** Practise particular flaw types, with snippets from every level (counts towards Progress only). */
+export function startFlawPractice(flaws, skip = []) {
+  if (!isOpen()) { ctx.go('home'); return; }
+  ctx.go('round', { level: 'beginner', practice: 'flaws', flaws, skip });
+}
+
 /** From a class page: the class's game (same snippets and choices for everyone). */
 export function startClassGame(info) {
   ctx.go('round', { classInfo: info });
 }
 
-export function renderRound(el, { level, classInfo, practice } = {}) {
+export function renderRound(el, { level, classInfo, practice, flaws, skip } = {}) {
   root = el;
   if (classInfo) beginClass(classInfo);
-  else if (level || !game.rounds.length) begin(level || 'beginner', practice || null);
+  else if (level || !game.rounds.length) begin(level || 'beginner', practice || null, { flaws, skip });
   else renderCurrent();
   document.addEventListener('keydown', onKeys);
   document.addEventListener('visibilitychange', onHidden);
@@ -67,14 +76,40 @@ export function renderRound(el, { level, classInfo, practice } = {}) {
   };
 }
 
-function begin(levelId, practice = null) {
+function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
   const lvl = LEVELS[levelId];
   game.level = lvl;
   game.classInfo = null;
   game.practice = practice;
-  const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME };
-  game.rounds = practice ? buildPractice({ ...args, surface: practice }) : buildGame(args);
+  game.flaws = practice === 'flaws' ? flaws : null;
+  game.session = null;
+  const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME, recent: recentSnippetIds() };
+  if (practice === 'flaws') game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: flaws || [], skip });
+  else if (practice) game.rounds = buildPractice({ ...args, surface: practice });
+  else {
+    game.rounds = buildGame(args);
+    game.session = rankedSession(lvl.id, game.rounds.map((r) => r.snippet.id));
+  }
+  if (!game.rounds.length) {
+    game.phase = 'idle';
+    root.replaceChildren(h('div', { class: 'panel card error' },
+      h('h1', { text: 'Nothing to practise here yet' }),
+      h('p', { text: 'There are no other snippets with this flaw yet. Try a full game instead.' }),
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.go('home'), text: 'Back to the levels' })));
+    return;
+  }
   reset();
+}
+
+/** This round's level: a flaw practice game mixes levels, everything else has one. */
+const roundLevel = () => game.rounds[game.i]?.level || game.level;
+
+function practiceLabel() {
+  if (game.practice === 'flaws') {
+    const names = (game.flaws || []).map((id) => category(id)?.name).filter(Boolean);
+    return names.length === 1 ? names[0] : 'Your weak spots';
+  }
+  return `${ctx.content.surfaces.get(game.practice)?.name || game.practice} · ${game.level.label}`;
 }
 
 function beginClass(info) {
@@ -92,6 +127,8 @@ function beginClass(info) {
   game.level = lvl;
   game.classInfo = info;
   game.practice = null;
+  game.flaws = null;
+  game.session = null;
   game.rounds = rounds;
   reset();
 }
@@ -110,13 +147,13 @@ function hud() {
   return h('div', { class: 'hud card' },
     h('div', { class: 'hud-stats' },
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: game.classInfo ? 'Class' : game.practice ? 'Practice' : 'Level' }),
-        h('span', { class: 'hud-value', text: game.classInfo ? game.classInfo.code : game.practice ? `${ctx.content.surfaces.get(game.practice)?.name || game.practice} · ${game.level.label}` : game.level.label, title: game.classInfo ? `${game.classInfo.name} · ${game.level.label}` : null })),
+        h('span', { class: 'hud-value', text: game.classInfo ? game.classInfo.code : game.practice ? practiceLabel() : game.level.label, title: game.classInfo ? `${game.classInfo.name} · ${game.level.label}` : null })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Round' }), h('span', { class: 'hud-value', text: `${game.i + 1} / ${total}` })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Score' }), h('span', { class: 'hud-value', id: 'hud-score', text: fmt(game.score) })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Streak' }),
         h('span', { class: `hud-value${game.streak >= 3 ? ' is-hot' : ''}`, id: 'hud-streak', text: `×${game.streak}` }))),
     h('div', { class: 'timer', role: 'timer', 'aria-label': 'Time left' },
-      h('span', { class: 'timer-num', id: 'timer-num', text: game.level.seconds }),
+      h('span', { class: 'timer-num', id: 'timer-num', text: roundLevel().seconds }),
       h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
     h('div', { class: 'hud-actions' },
       h('button', { class: 'btn btn-quiet', id: 'pause', type: 'button', 'aria-keyshortcuts': 'P', onclick: togglePause }, icon('pause', 'icon icon-sm'), h('span', { text: 'Pause' })),
@@ -138,10 +175,11 @@ function renderCurrent() {
     code.append(h('button', {
       class: 'line', type: 'button', 'data-line': n, 'aria-pressed': 'false', 'data-no-press': true,
       disabled: blank, tabindex: blank ? '-1' : null,
+      'aria-label': blank ? `Line ${n}, blank` : `Line ${n}: ${text.trim()}`,
       onclick: () => selectLine(n),
     },
     h('span', { class: 'ln', 'aria-hidden': 'true', text: n }),
-    h('span', { class: 'lc' }, highlightLine(text || ' ', s.language)),
+    h('span', { class: 'lc', style: { '--ind': indentOf(text) } }, highlightLine(text || ' ', s.language)),
     h('span', { class: 'line-tag', 'aria-hidden': 'true' })));
   });
   code.addEventListener('keydown', onCodeKeys);
@@ -192,6 +230,7 @@ function renderCurrent() {
         h('p', { class: 'keys', text: 'Press P to resume.' }))));
 
   startTimer();
+  game.session?.clock(game.i + 1, 'start');
   const first = $('.line:not([disabled])', code);
   if (first) first.focus({ preventScroll: true });
 }
@@ -258,6 +297,7 @@ function togglePause() {
     game.paused = true;
     game.leftMs = Math.max(0, game.deadline - performance.now());
     stopTimer();
+    game.session?.clock(game.i + 1, 'pause');
     root.classList.add('is-paused');
     $('#pause-left').textContent = `${Math.ceil(game.leftMs / 1000)} seconds left on the clock.`;
     cover.hidden = false;
@@ -269,6 +309,7 @@ function togglePause() {
     cover.hidden = true;
     button.setAttribute('aria-pressed', 'false');
     startTimer(game.leftMs);
+    game.session?.clock(game.i + 1, 'resume');
     const back = $('#code .line[aria-pressed="true"]') || $('#code .line:not([disabled])');
     back?.focus({ preventScroll: true });
   }
@@ -276,7 +317,7 @@ function togglePause() {
 
 function startTimer(remainingMs = null) {
   stopTimer();
-  const totalMs = game.level.seconds * 1000;
+  const totalMs = roundLevel().seconds * 1000;
   game.deadline = performance.now() + (remainingMs ?? totalMs);
   const bar = $('#timer-bar');
   const num = $('#timer-num');
@@ -308,13 +349,14 @@ function lockIn(timedOut) {
   const s = game.rounds[game.i].snippet;
   const score = scoreRound({
     snippet: s, pickedLine: game.pickedLine, pickedType: game.pickedType, secondsLeft: left,
-    totalSeconds: game.level.seconds, streak: game.streak, multiplier: game.level.multiplier,
+    totalSeconds: roundLevel().seconds, streak: game.streak, multiplier: roundLevel().multiplier,
   });
   game.streak = score.newStreak;
   game.score += score.points;
   game.results.push({ snippet: s, pickedLine: game.pickedLine, pickedType: game.pickedType, timedOut, score });
   // What the online scoreboard needs to re-score this round on the server.
   game.answers.push({ id: s.id, line: game.pickedLine ?? null, type: game.pickedType ?? null, left: score.tenthsLeft });
+  game.session?.answer(game.i + 1, game.answers[game.answers.length - 1]);
 
   const scoreEl = $('#hud-score');
   const streakEl = $('#hud-streak');
@@ -336,6 +378,7 @@ function lockIn(timedOut) {
 
 function markLines(s, score) {
   const accept = new Set(s.acceptLines || []);
+  $('#code')?.setAttribute('tabindex', '0');   // lines are disabled now: keep the code scrollable by keyboard
   for (const el of $$('#code .line')) {
     const n = Number(el.dataset.line);
     el.disabled = true;
@@ -393,11 +436,14 @@ function renderVerdict(s, score, timedOut) {
   $('#next').focus({ preventScroll: true });
 }
 
+/** Leading spaces, so a long line that wraps on a phone keeps its indentation. */
+const indentOf = (text) => String(Math.min(40, (/^ */.exec(text || '')[0] || '').length));
+
 export function staticCode(lines, language, marks, cls) {
-  return h('div', { class: 'code code-static' },
+  return h('div', { class: 'code code-static', tabindex: '0' },
     lines.map((text, idx) => h('div', { class: `line${marks.has(idx + 1) ? ` ${cls}` : ''}` },
       h('span', { class: 'ln', 'aria-hidden': 'true', text: idx + 1 }),
-      h('span', { class: 'lc' }, highlightLine(text || ' ', language)))));
+      h('span', { class: 'lc', style: { '--ind': indentOf(text) } }, highlightLine(text || ' ', language)))));
 }
 
 function renderReveal(s) {
@@ -426,7 +472,7 @@ function renderReveal(s) {
 function reportLink(s) {
   const title = `Mistake in ${s.id}: ${s.title}`;
   const body = [
-    `Snippet: ${s.id} (${s.language}, ${game.level.label})`,
+    `Snippet: ${s.id} (${s.language}, ${roundLevel().label})`,
     `Title: ${s.title}`,
     `Version: ${APP.version}`,
     '',
@@ -461,6 +507,8 @@ function nextRound() {
     posted: null,
     classInfo: game.classInfo,
     practice: game.practice,
+    flaws: game.flaws,
+    session: game.session,
   };
   game.rounds = [];
   ctx.go('results');

@@ -2,14 +2,20 @@
 // the certificate. From this device's games, plus the account's when signed in.
 import { LEVELS, SITE_URL } from '../config.js';
 import { h, icon, pageHead, fill, fmt, dateLabel, countUp } from '../dom.js';
-import { ctx, category } from '../context.js';
+import { ctx, category, isOpen } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
 import { onlineEnabled, myCertificate, registerCertificate } from '../online.js';
 import { myGames, syncHistory, syncState, onSync } from '../sync.js';
 import { levelStats, categoryStats, weakSpots, totals, surfaceStats } from '../stats.js';
 import { certificateProgress, progressFromOnline, drawCertificate, formatLongDate, CERTIFICATE_ACCURACY } from '../draw.js';
-import { startGame } from './round.js';
+import { startGame, startFlawPractice } from './round.js';
 import { prefs } from '../storage.js';
+
+function practiseButton(flaws, label, cls) {
+  const open = isOpen();
+  return h('button', { type: 'button', class: cls, disabled: !open, title: open ? null : 'Practice opens on Friday',
+    onclick: () => startFlawPractice(flaws) }, label);
+}
 
 export function renderProgress(root) {
   const cleanups = [];
@@ -99,7 +105,13 @@ function page(cleanups) {
       h('ul', { class: 'weak-list' }, weak.slice(0, 3).map((w) => h('li', {},
         h('p', { class: 'focus-name', text: `${w.category.name} · ${w.rate}%` }),
         h('p', { class: 'muted', text: w.category.summary }),
-        h('p', { class: 'focus-meta', text: [w.category.owasp, w.category.cwe].filter(Boolean).join(' · ') }))))) : null,
+        h('p', { class: 'focus-meta', text: [w.category.owasp, w.category.cwe].filter(Boolean).join(' · ') }),
+        practiseButton([w.category.id], 'Practise this flaw', 'btn btn-quiet btn-small')))),
+      weak.length > 1 ? h('div', { class: 'btn-row' },
+        practiseButton(weak.slice(0, 3).map((w) => w.category.id), `Practise all ${Math.min(3, weak.length)}`, 'btn btn-ghost')) : null,
+      h('p', { class: 'save-hint', text: isOpen()
+        ? 'Practice drills the flaw on snippets from every level. It counts towards Progress, not the scoreboard.'
+        : 'Practice opens on Friday, with the rest of the game.' })) : null,
     certificatePanel(games, cleanups),
     h('section', { class: 'panel card' },
       h('h2', { text: 'Recent games' }),
@@ -107,7 +119,7 @@ function page(cleanups) {
         const v = g.accuracy >= 80 ? ['win', `${g.accuracy}%`] : g.accuracy >= 50 ? ['partial', `${g.accuracy}%`] : ['miss', `${g.accuracy}%`];
         return h('li', { class: 'fade-in-row', style: { '--i': i } },
           h('span', { class: `pill pill-${v[0]}`, text: v[1] }),
-          h('span', { class: 'review-title', text: `${LEVELS[g.level]?.label || g.level}${g.practice ? ` · practice (${g.practice})` : ''}${g.classCode ? ' · class' : ''}${g.team ? ' · team' : ''}${g.posted ? ' · posted' : ''}` }),
+          h('span', { class: 'review-title', text: `${LEVELS[g.level]?.label || (g.level === 'mixed' ? 'Mixed levels' : g.level)}${g.practice ? ` · practice (${g.practice === 'flaws' ? 'flaw types' : g.practice})` : ''}${g.classCode ? ' · class' : ''}${g.team ? ' · team' : ''}${g.posted ? ' · posted' : ''}` }),
           h('span', { class: 'review-cat', text: dateLabel(g.date) }),
           h('span', { class: 'review-pts', text: fmt(g.score) }));
       }))),

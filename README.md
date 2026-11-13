@@ -8,6 +8,14 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.12.0
+
+- **Server-timed games for the online scoreboard.** A ranked game is opened on the server when it starts (`arcade_stb_start`), the server notes when each round is shown, paused, resumed (`arcade_stb_clock`) and answered (`arcade_stb_answer`), and posting (`arcade_stb_post`) scores the game from that record. The browser can no longer claim time it didn't take, an answer that arrives well after the clock ran out counts as no answer, only a game that was really played, in order, can be posted, and only once. A game with 3 or more clean rounds answered in under 2 seconds is posted hidden and flagged `too-fast` for a moderator. The old `arcade_submit_spot_the_bug` now asks out-of-date copies to reload. See "Scoreboard integrity" for what this does and doesn't stop.
+- **Fewer repeats:** games and practice deal snippets you haven't seen first, then the ones seen longest ago (from this device's history).
+- **Practise a flaw:** every focus area on the results screen has a Practise button, plus "Practise these flaws", and Progress has one per weak spot. Practice uses other snippets with the same flaw from every level, easiest first, each round with its own level's timer and choices.
+- **Accessibility:** code lines have names for screen readers and are at least 24px tall to tap; dim text, comments and the missed pill meet 4.5:1 contrast; code panels can be scrolled with the keyboard; on phones a long line that wraps keeps its indentation, and its line number stays on its first row.
+- Home slides: the first slide now says 60 snippets, and a new slide shows the mobile and cloud snippets.
+
 ## What's new in v0.11.0
 
 - **Mobile apps and config and cloud.** 30 new snippets, so 60 in all, 20 per level:
@@ -153,7 +161,7 @@ scripts/answer-key-sql.mjs    prints SQL that updates the online answer key
 scripts/test-progress.mjs     Progress and certificate rule tests
 scripts/build-three.mjs       builds assets/vendor/three.min.js from a three.js checkout
 scripts/update-sw.mjs         updates service-worker.js (version and file list); --check in npm test
-supabase/migrations/          the online scoreboard's database setup (already applied)
+supabase/migrations/          the online scoreboard's database setup (already applied); 20261113090000 adds server-timed games
 ```
 
 ## Adding a snippet
@@ -222,7 +230,7 @@ To add a new pack (for example a client's custom pack), put the file in `data/sn
 
 ## Scoring
 
-All numbers live in `assets/js/config.js`. The online scoreboard re-scores every game with the same numbers in `public.arcade_submit_spot_the_bug`, so if you change scoring, change both.
+All numbers live in `assets/js/config.js`. The online scoreboard re-scores every game with the same numbers in `arcade.stb_post_scores` (used by `public.arcade_stb_post`), so if you change scoring, change both.
 
 | | Points |
 | --- | --- |
@@ -241,19 +249,25 @@ The shared board lives in the **LureLens** Supabase project (organization **Th3 
 How it stays honest:
 
 - Posting needs an account: email code or quick join. Accounts, usernames and profiles are LureLens's (`auth.users`, `public.profiles`, `save_profile`, `delete_my_account`), so one username works in both games. Deleting an account deletes its Spot the Bug scores too, and a player a LureLens moderator hides is hidden here as well.
-- The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_submit_spot_the_bug`, `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
+- The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_stb_start` / `arcade_stb_clock` / `arcade_stb_answer` (anyone, while playing), `arcade_stb_post` (signed in), `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
 - Classes: `arcade_create_class` (signed in, 20 a day), `arcade_class`, `arcade_class_board` and `arcade_class_debrief` (anyone with the code), `arcade_class_submit` (signed in, one game per player per class, must match the class's snippets in order, scored on the server like the public board), `arcade_my_classes`, `arcade_close_class` and `arcade_class_hide_result` (the teacher). Each new class result sends a live signal on `arcade:class:CODE`.
 - Moderation: `arcade_mod_scores`, `arcade_mod_list`, `arcade_mod_set_hidden` and `arcade_mod_history` check `public.is_moderator()` on every call; every hide and show is logged in `arcade.moderation_log`.
 - A certificate is issued only from posted games (server-scored, not hidden) with 80%+ at each level, one per account; its reference is random and renaming keeps the same reference.
-- A posted game sends the answers (snippet, line, flaw type, time left), not a score. The server re-scores it against its own answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
-- Each game must have 10 different snippets from the right level. Games are filed under the account's username; a name sent by the browser is ignored.
+- A ranked game is recorded on the server as it's played (`arcade.stb_games`): the 10 snippets when it starts, then when each round is shown, paused, resumed and answered. Posting scores that record against the server's answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
+- Speed comes from the server's clock: a round can't claim more time left than the server allows (with 3 seconds' grace for slow mobile networks), and an answer that arrives more than 6 seconds after the clock ran out counts as no answer. 3 or more clean rounds answered in under 2 seconds by the server's clock means the game is posted hidden, logged in `arcade.moderation_log` and flagged `too-fast` for a moderator.
+- A game can be played before signing in and posted afterwards (the first account to post it claims it), for a day. Unposted games are deleted after 2 days. Starting games is limited to 30 per account every 10 minutes and 300 a minute overall.
+- Each game must have 10 different snippets from the right level, including at least one mobile and one config snippet. Games are filed under the account's username; a name sent by the browser is ignored.
 - Flood limits: 10 games per account every 10 minutes, 300 per team every 10 minutes, 120 games per minute overall. No network addresses are stored.
 - New public games send a tiny live signal (just the level) on the public realtime channel `arcade:spot-the-bug`, and open boards reload. Networks that block live connections refresh every minute instead.
 - If the board can't be reached, the score is saved on the device and the player can try again.
 
-Known limits, fine for now:
+### Scoreboard integrity
 
-- The time left on each round is reported by the browser, so a determined player could inflate the speed bonus (at most 50 points a round before the level multiplier). Line and flaw type can't be faked.
+What the server can and can't check:
+
+- **Stopped:** typing a score, claiming time that wasn't taken, posting a game that wasn't played (or posting one twice), and scripts that answer faster than a person can read.
+- **Not stopped:** the answers are in this public repository (`data/snippets/*.json`, the answer key migrations) and in its history, so someone can look them up and play at a human speed. Hiding them on the website wouldn't help while the repository is public. The fixes are content-side: more snippets (so looking them up is slower than learning them), and, for the certificate, a pool of snippets kept in a private repository and loaded only into the database, never into this repo.
+- Class games still post through `arcade_class_submit`, which trusts the browser's time left (only the class board is affected).
 
 ### Two settings to check in the Supabase dashboard
 

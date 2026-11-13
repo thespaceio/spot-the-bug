@@ -119,6 +119,15 @@ export const history = {
   },
 };
 
+/** Snippet ids from recent games, the most recent first (to deal fresh snippets). */
+export function recentSnippetIds(games = 40) {
+  return history.list()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    .slice(0, games)
+    .flatMap((g) => (Array.isArray(g.answers) ? g.answers.map((a) => a?.id) : []))
+    .filter(Boolean);
+}
+
 export function newGameId() {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);

@@ -1,6 +1,6 @@
 // End of game: score, focus areas, posting to the online board, round review.
 import { h, icon, fmt, countUp, revealText, fill } from '../dom.js';
-import { ctx, canPostOnline, boardName, category } from '../context.js';
+import { ctx, canPostOnline, boardName, category, isOpen } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
 import { onlineEnabled, postGame, fetchBoard, submitClassGame, classBoard } from '../online.js';
 import { history } from '../storage.js';
@@ -8,7 +8,7 @@ import { syncHistory } from '../sync.js';
 import { drawShareCard, shareText } from '../draw.js';
 import { SITE_URL } from '../config.js';
 import { boardTable } from './board.js';
-import { startGame, startPractice } from './round.js';
+import { startGame, startPractice, startFlawPractice } from './round.js';
 
 export function renderResults(root) {
   const r = ctx.result;
@@ -20,7 +20,7 @@ export function renderResults(root) {
   if (!r.saved) {
     r.saved = true;
     history.add({
-      id: r.id, level: lvl.id, date: r.date, score: sum.total, clean: sum.clean, lines: sum.lines,
+      id: r.id, level: r.practice === 'flaws' ? 'mixed' : lvl.id, date: r.date, score: sum.total, clean: sum.clean, lines: sum.lines,
       rounds: sum.rounds, accuracy: sum.accuracy, bestStreak: sum.bestStreak,
       team: ctx.teamStatus.info ? ctx.team.slug : null,
       classCode: r.classInfo?.code || null,
@@ -50,7 +50,7 @@ export function renderResults(root) {
 
   fill(root,
     h('div', { class: 'results-hero' },
-      h('p', { class: 'eyebrow text-in', text: r.practice ? `PRACTICE COMPLETE · ${(ctx.content.surfaces.get(r.practice)?.label || r.practice).toUpperCase()} · ${lvl.label.toUpperCase()}` : `GAME COMPLETE · ${lvl.label.toUpperCase()}${r.classInfo ? ` · CLASS ${r.classInfo.code}` : ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
+      h('p', { class: 'eyebrow text-in', text: r.practice === 'flaws' ? `PRACTICE COMPLETE · ${practiceName(r).toUpperCase()}` : r.practice ? `PRACTICE COMPLETE · ${(ctx.content.surfaces.get(r.practice)?.label || r.practice).toUpperCase()} · ${lvl.label.toUpperCase()}` : `GAME COMPLETE · ${lvl.label.toUpperCase()}${r.classInfo ? ` · CLASS ${r.classInfo.code}` : ctx.teamStatus.info ? ` · ${ctx.teamStatus.info.name.toUpperCase()}` : ''}` }),
       h('h1', { id: 'results-title' }, scoreEl, h('span', { class: 'big-score-unit' }, revealText(' points', 500))),
       h('p', { class: 'lead text-in', style: { '--d': '400ms' }, text: message })),
     h('div', { class: 'stats' },
@@ -60,13 +60,7 @@ export function renderResults(root) {
       stat('Best streak', String(sum.bestStreak), 3)),
     h('div', { class: 'results-grid' },
       postPanel,
-      h('section', { class: 'panel card' },
-        h('h2', { text: 'Focus areas' }),
-        sum.focus.length
-          ? h('ul', { class: 'focus-list' }, sum.focus.map((f, i) => h('li', { class: 'rise-in', style: { '--i': i } },
-              h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
-              h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }))))
-          : h('p', { class: 'muted', text: 'Nothing missed. Try the next level up.' }))),
+      focusPanel(r)),
     sharePanel(r),
     h('section', { class: 'panel card review' },
       h('h2', { text: 'Round by round' }),
@@ -80,7 +74,8 @@ export function renderResults(root) {
       }))),
     r.practice
       ? h('div', { class: 'actions' },
-        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startPractice(lvl.id, r.practice), text: 'Practise again' }),
+        h('button', { class: 'btn btn-primary', type: 'button', text: 'Practise again',
+          onclick: () => (r.practice === 'flaws' ? startFlawPractice(r.flaws || [], []) : startPractice(lvl.id, r.practice)) }),
         h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => startGame(lvl.id), text: `Play a full ${lvl.label} game` }))
       : r.classInfo
       ? h('div', { class: 'actions' },
@@ -144,10 +139,48 @@ function stat(label, value, i) {
 
 // Practice games stay off the scoreboard and the certificate.
 function practiceContents(r) {
-  const kind = ctx.content.surfaces.get(r.practice);
+  const what = r.practice === 'flaws'
+    ? `${practiceName(r)}, with snippets from every level`
+    : `${ctx.content.surfaces.get(r.practice)?.label || 'This kind of code'} only`;
   return [h('h2', { id: 'post-title', text: 'Practice game' }),
-    h('p', { class: 'muted', text: `${kind?.label || 'This kind of code'} only, ${r.summary.rounds} rounds. Practice counts towards your Progress, but not the scoreboard or the certificate.` }),
-    h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('progress') }, 'See your progress by kind of code ', icon('arrow', 'icon icon-sm'))];
+    h('p', { class: 'muted', text: `${what}, ${r.summary.rounds} ${r.summary.rounds === 1 ? 'round' : 'rounds'}. Practice counts towards your Progress, but not the scoreboard or the certificate.` }),
+    h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('progress') },
+      r.practice === 'flaws' ? 'See your progress by flaw type ' : 'See your progress by kind of code ', icon('arrow', 'icon icon-sm'))];
+}
+
+/** "Weak spots" or the one flaw type a flaw practice game drilled. */
+export function practiceName(r) {
+  const names = (r.flaws || []).map((id) => category(id).name);
+  return names.length === 1 ? names[0] : 'Your weak spots';
+}
+
+// The flaw types missed in this game, each with a way to practise it on other snippets.
+function focusPanel(r) {
+  const sum = r.summary;
+  const played = r.results.map((x) => x.snippet.id);
+  const open = isOpen();
+  const others = (id) => ctx.content.snippets.filter((s) => s.category === id && !played.includes(s.id)).length;
+  const practiseBtn = (ids, label, cls) => h('button', {
+    type: 'button', class: cls, disabled: !open,
+    title: open ? null : 'Practice opens on Friday',
+    onclick: () => startFlawPractice(ids, played),
+  }, label);
+  if (!sum.focus.length) {
+    return h('section', { class: 'panel card' }, h('h2', { text: 'Focus areas' }),
+      h('p', { class: 'muted', text: r.practice ? 'Nothing missed.' : 'Nothing missed. Try the next level up.' }));
+  }
+  const ids = sum.focus.map((f) => f.id).filter((id) => others(id));
+  return h('section', { class: 'panel card' },
+    h('h2', { text: 'Focus areas' }),
+    h('ul', { class: 'focus-list' }, sum.focus.map((f, i) => h('li', { class: 'rise-in', style: { '--i': i } },
+      h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
+      h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }),
+      others(f.id) ? practiseBtn([f.id], 'Practise', 'btn btn-quiet btn-sm focus-practise') : null))),
+    ids.length > 1 ? h('div', { class: 'btn-row focus-actions' },
+      practiseBtn(ids, `Practise these ${ids.length} flaws`, 'btn btn-ghost')) : null,
+    h('p', { class: 'save-hint', text: open
+      ? 'Practice uses other snippets with the same flaw, from every level. It counts towards Progress, not the scoreboard.'
+      : 'Practice opens on Friday, with the rest of the game.' }));
 }
 
 // A class game goes to the class board (not the public scoreboard), once.
@@ -201,6 +234,10 @@ function postContents(r) {
 
   if (r.posted) {
     const res = r.posted;
+    if (res.held) {
+      return [title('Posted, waiting for a check'),
+        h('p', { class: 'save-msg', role: 'status', text: `Your game is saved online as ${res.name}, but some rounds were answered faster than a person can usually read the code, so the Th3 SpaceIO team will check it before it shows on the ${boardName()}. If you played it yourself, it will appear soon.` })];
+    }
     const parts = [`Posted to the ${boardName()} as ${res.name}.`];
     if (res.rank && res.of) parts.push(`This game ranks number ${res.rank} of ${res.of} ${res.of === 1 ? 'player' : 'players'} at ${lvl.label}.`);
     if (res.score !== r.summary.total) parts.push(`The scoreboard counted ${fmt(res.score)} points.`);
@@ -242,7 +279,7 @@ function postContents(r) {
     msg.className = 'save-msg is-pending';
     msg.textContent = `Posting to the ${boardName()}…`;
     try {
-      r.posted = await postGame({ level: lvl.id, answers: r.answers, team: ctx.teamStatus.info ? ctx.team : null });
+      r.posted = await postGame({ session: r.session, team: ctx.teamStatus.info ? ctx.team : null });
       history.update(r.id, { posted: true });
       const panel = btn.closest('.post-panel');
       if (panel) fill(panel, postContents(r));

@@ -14,16 +14,17 @@
   --green-soft: rgba(0, 204, 106, 0.12);
   --green-line: rgba(0, 204, 106, 0.45);
   --red: #FF3B30;
+  --red-text: #FF6B62;   /* Threat Red, lifted for small text on --red-soft (4.5:1) */
   --red-soft: rgba(255, 59, 48, 0.14);
   --red-line: rgba(255, 59, 48, 0.55);
   --gray: #A7B0BC;
-  --gray-dim: #6E7B8E;
+  --gray-dim: #808D9F;   /* 4.5:1 or better on every surface (WCAG AA) */
   --white: #FFFFFF;
   --text: #E8EDF3;
 
   --tok-keyword: #8DB4FF;
   --tok-string: #E3C98F;
-  --tok-comment: #6E7B8E;
+  --tok-comment: #808D9F;
   --tok-number: #C5ABFF;
   --tok-fn: #86D3E6;
   --tok-variable: #F1B6D2;
@@ -267,7 +268,7 @@ button { font: inherit; color: inherit; }
 .option.is-correct .key { color: var(--green); border-color: var(--green-line); }
 .option.is-wrong { border-color: var(--red); background: var(--red-soft); }
 .option.is-wrong .key { color: var(--red); border-color: var(--red-line); }
-.keys { font-size: 12px; color: var(--gray-dim); }
+.keys { font-size: 12px; color: var(--gray); }
 @media (hover: none) { .keys, .option .key { display: none; } }
 
 /* Verdict */
@@ -279,8 +280,8 @@ button { font: inherit; color: inherit; }
 .verdict-miss { border-color: var(--red-line); background: var(--red-soft); }
 .verdict-miss .verdict-title { color: var(--red); }
 .breakdown { margin: 0; display: grid; }
-.breakdown div { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--gray-dim); }
-.breakdown div.has { color: var(--gray); }
+.breakdown div { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: var(--gray); }
+.breakdown div.has { color: var(--text); }
 .breakdown div.has dd { color: var(--green); }
 .breakdown dd { margin: 0; font-family: var(--font-mono); font-size: 13px; }
 .breakdown .total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 10px; color: var(--white); font-weight: 600; }
@@ -337,13 +338,15 @@ button { font: inherit; color: inherit; }
 .review-pts { grid-column: 3; grid-row: 1 / span 2; font-family: var(--font-mono); color: var(--white); }
 .pill { grid-row: 1 / span 2; font-size: 12px; font-weight: 600; text-align: center; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--border-strong); color: var(--gray); }
 .pill-win { color: var(--green); border-color: var(--green-line); background: var(--green-soft); }
-.pill-miss { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.pill-miss { color: var(--red-text); border-color: var(--red-line); background: var(--red-soft); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 
 /* Phones: wrap long code lines so the whole flaw is visible without sideways scrolling */
 @media (max-width: 560px) {
   .code .line { width: 100%; }
   .code .lc { white-space: pre-wrap; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
+  /* A wrapped line continues under its own indentation, two spaces further in (matters for Python) */
+  .code .lc { padding-left: calc((var(--ind, 0) + 2) * 1ch); text-indent: calc((var(--ind, 0) + 2) * -1ch); }
   .code, .compare .code { font-size: 11.5px; }
   .code .line { padding-right: 8px; }
   .code .ln { width: 2.4em; padding-right: 8px; }
@@ -1057,7 +1060,7 @@ html.has-world body[data-view="round"] .card, html.has-world body[data-view="rou
 .stage-copy .lead { max-width: 46ch; }
 .stage-copy .btn-row { margin-top: 28px; }
 .btn-lg { min-height: 52px; padding: 12px 22px; font-size: 16px; }
-.stage-scroll { margin-top: 44px; display: flex; align-items: center; gap: 12px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gray-dim); }
+.stage-scroll { margin-top: 44px; display: flex; align-items: center; gap: 12px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gray); }
 .stage-scroll-line { width: 44px; height: 1px; background: linear-gradient(90deg, var(--green), transparent); transform-origin: left; }
 .stage-mark { display: grid; place-items: center; }
 .stage-mark img { width: clamp(150px, 22vw, 260px); height: auto; filter: drop-shadow(0 0 60px rgba(0, 204, 106, 0.25)); }
@@ -1102,3 +1105,13 @@ html.has-world .stage-copy::before {
 .practice-head h3 { margin: 0; font-size: 19px; color: var(--white); }
 .bars-subhead { font-size: 15px; color: var(--white); margin: 22px 0 12px; }
 @media (max-width: 520px) { .code-panel .panel-bar-hint { display: none; } }
+
+/* v0.12: practise a flaw from focus areas and Progress */
+.focus-list li .focus-practise { min-height: 32px; padding: 4px 12px; font-size: 13px; }
+.focus-list li > div { flex: 1; }
+.focus-actions { margin-top: 14px; }
+.weak-list .btn-small { margin-top: 8px; }
+
+/* v0.12 accessibility: code lines are at least 24px tall to tap */
+.code .line { min-height: 24px; align-items: baseline; padding-block: max(0px, calc((24px - 1.7em) / 2)); }   /* number beside the first row of a wrapped line */
+.code:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }

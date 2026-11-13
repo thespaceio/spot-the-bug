@@ -12,7 +12,7 @@ import { segmented } from './board.js';
 const state = { tab: 'scores', view: 'recent', search: '', reason: '' };
 const TABS = [{ id: 'scores', label: 'Games' }, { id: 'certificate', label: 'Certificates' }, { id: 'class', label: 'Classes' }, { id: 'log', label: 'Log' }];
 const VIEWS = [{ id: 'recent', label: 'Recent' }, { id: 'flagged', label: 'Flagged' }, { id: 'hidden', label: 'Hidden' }];
-const FLAG_TEXT = { 'near-max': 'Near the maximum score', burst: 'Many games in an hour' };
+const FLAG_TEXT = { 'near-max': 'Near the maximum score', burst: 'Many games in an hour', 'too-fast': 'Held automatically: 3 or more clean rounds answered in under 2 seconds' };
 
 export function renderModerate(root) {
   let key = '';

@@ -25,6 +25,7 @@ const game = {
   classInfo: null,    // set for a class game (everyone plays the same snippets)
   practice: null,     // 'backend' | 'mobile' | 'config' | 'flaws' for a practice game
   flaws: null,        // the flaw types of a 'flaws' practice game
+  pack: null,         // a team pack's ID, when practising that pack (a 'flaws' game over the pack)
   session: null,      // a ranked game's server record (online.js rankedSession)
   untimed: false,     // practice with the clock turned off
 };
@@ -112,15 +113,23 @@ export function startFlawPractice(flaws, skip = []) {
   ctx.go('round', { level: 'beginner', practice: 'flaws', flaws, skip });
 }
 
+/** Practise a team pack: its snippets only, every level, easiest first (team links only). */
+export function startPackPractice(pack) {
+  ctx.go('round', { level: 'beginner', practice: 'flaws', flaws: null, pack });
+}
+
+/** The name of a team pack loaded on this team link. */
+export const packName = (id) => ctx.teamStatus.info?.packs?.find((p) => p.id === id)?.name || 'Team pack';
+
 /** From a class page: the class's game (same snippets and choices for everyone). */
 export function startClassGame(info) {
   ctx.go('round', { classInfo: info });
 }
 
-export function renderRound(el, { level, classInfo, practice, flaws, skip } = {}) {
+export function renderRound(el, { level, classInfo, practice, flaws, skip, pack } = {}) {
   root = el;
   if (classInfo) beginClass(classInfo);
-  else if (level || !game.rounds.length) begin(level || 'beginner', practice || null, { flaws, skip });
+  else if (level || !game.rounds.length) begin(level || 'beginner', practice || null, { flaws, skip, pack });
   else renderCurrent();
   document.addEventListener('keydown', onKeys);
   document.addEventListener('visibilitychange', onHidden);
@@ -135,12 +144,13 @@ export function renderRound(el, { level, classInfo, practice, flaws, skip } = {}
   };
 }
 
-function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
+function begin(levelId, practice = null, { flaws = null, skip = [], pack = null } = {}) {
   const lvl = LEVELS[levelId];
   game.level = lvl;
   game.classInfo = null;
   game.practice = practice;
   game.flaws = practice === 'flaws' ? flaws : null;
+  game.pack = practice === 'flaws' ? pack : null;
   game.session = null;
   game.untimed = Boolean(practice) && practiceClockOff();
   const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME, recent: recentSnippetIds() };
@@ -148,7 +158,10 @@ function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
     const sn = ctx.content.snippets.find((x) => x.id === TUTORIAL_SNIPPET);
     game.rounds = sn ? buildClassGame({ ...args, ids: [sn.id], seed: 7 }) || [] : [];
     game.untimed = true;
-  } else if (practice === 'flaws') game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: flaws || [], skip });
+  } else if (practice === 'flaws') {
+    game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: pack ? null : flaws || [], skip,
+      only: pack ? (s) => s.teamPack === pack : null });
+  }
   else if (practice) game.rounds = buildPractice({ ...args, surface: practice });
   else {
     game.rounds = buildGame(args);
@@ -174,6 +187,7 @@ const roundLevel = () => game.rounds[game.i]?.level || game.level;
 
 function practiceLabel() {
   if (game.practice === 'tutorial') return 'Guided round';
+  if (game.practice === 'flaws' && game.pack) return packName(game.pack);
   if (game.practice === 'flaws') {
     const names = (game.flaws || []).map((id) => category(id)?.name).filter(Boolean);
     return names.length === 1 ? names[0] : 'Your weak spots';
@@ -197,6 +211,7 @@ function beginClass(info) {
   game.classInfo = info;
   game.practice = null;
   game.flaws = null;
+  game.pack = null;
   game.session = classSession(info.code);
   game.untimed = false;
   game.rounds = rounds;
@@ -673,6 +688,7 @@ function nextRound() {
     classInfo: game.classInfo,
     practice: game.practice,
     flaws: game.flaws,
+    pack: game.pack,
     session: game.session,
   };
   game.rounds = [];

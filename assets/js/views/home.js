@@ -7,7 +7,7 @@ import { ctx, isOpen } from '../context.js';
 import { onlineEnabled, fetchBoard, liveUpdates } from '../online.js';
 import { heroSlides } from './slides.js';
 import { liveDot, boardTable, segmented } from './board.js';
-import { startGame, startPractice, startTutorial, practiceClockOff, setPracticeClock } from './round.js';
+import { startGame, startPractice, startTutorial, startPackPractice, practiceClockOff, setPracticeClock } from './round.js';
 
 export function renderHome(root) {
   const cleanups = [];
@@ -56,7 +56,11 @@ export function renderHome(root) {
       h('p', { text: `${ctx.teamStatus.error} You can still play; scores will be saved on this device only.` })) : null,
     ctx.teamStatus.info ? h('div', { class: 'notice notice-team', role: 'status' },
       h('p', { class: 'notice-title' }, icon('users', 'icon icon-sm'), ` ${ctx.teamStatus.info.name} team board`),
-      h('p', { text: 'Scores you post from this link go to your team\'s private board. Team play is open every day.' })) : null,
+      h('p', { text: 'Scores you post from this link go to your team\'s private board. Team play is open every day.' }),
+      ...teamPacks().map((p) => h('div', { class: 'team-pack' },
+        h('p', {}, h('strong', { text: p.name }), ` · ${p.count} ${p.count === 1 ? 'snippet' : 'snippets'} written for your team. They come up first in your games, or practise them on their own.`),
+        h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => startPackPractice(p.id) },
+          icon('play', 'icon icon-sm'), `Practise ${p.name}`)))) : null,
     titleStage(toLevels),
     slides.el,
     isOpen() ? null : h('section', { class: 'gamenight-closed card', id: 'game-night-closed', role: 'status' },
@@ -92,6 +96,13 @@ export function renderHome(root) {
 // Progress, not the scoreboard or the certificate (like LureLens's practice by channel).
 const practiceChoice = { level: 'beginner' };
 const KIND_ICON = { backend: 'code', mobile: 'phone', config: 'cloud' };
+/** The team's packs whose snippets loaded on this link. */
+function teamPacks() {
+  return (ctx.teamStatus.info?.packs || []).map((p) => ({
+    id: p.id, name: p.name, count: ctx.content.snippets.filter((s) => s.teamPack === p.id).length,
+  })).filter((p) => p.count);
+}
+
 function practiceSection() {
   const surfaces = [...ctx.content.surfaces.values()];
   const count = (id) => ctx.content.snippets.filter((s) => (s.surface || 'backend') === id && s.difficulty === practiceChoice.level).length;

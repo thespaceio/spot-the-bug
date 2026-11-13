@@ -6,6 +6,16 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.17',
+    title: 'For teams',
+    items: [
+      'Team admins can now see how their team is doing: players, levels and the flaw types that need work, with CSV and PDF reports.',
+      'Teams can have their own snippet packs, written for their stack and shown only to them.',
+      'Teachers can download a class\'s results as a CSV file.',
+      'A new "For teams" page explains what companies, bootcamps and universities get.',
+    ],
+  },
+  {
     version: '0.16',
     title: 'Twice as many snippets',
     items: [

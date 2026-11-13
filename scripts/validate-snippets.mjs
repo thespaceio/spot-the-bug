@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Checks every snippet pack listed in data/manifest.json.
 // Run: node scripts/validate-snippets.mjs   (no dependencies)
+// A team pack (kept outside this repository) is checked alongside the public
+// snippets with: node scripts/validate-snippets.mjs --pack path/to/pack.json
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -40,8 +42,24 @@ const perSurfaceLevel = {};
 const inRange = (n, max) => Number.isInteger(n) && n >= 1 && n <= max;
 const isText = (v, min = 1) => typeof v === 'string' && v.trim().length >= min;
 
-for (const pack of manifest.packs) {
-  const data = await readJson(pack.file);
+// Team packs given with --pack: { "pack": { "id", "name", "description" }, "snippets": [...] }
+const extra = [];
+for (let i = 2; i < process.argv.length; i++) {
+  if (process.argv[i] === '--pack' && process.argv[i + 1]) extra.push(path.resolve(process.argv[++i]));
+}
+const sources = [
+  ...manifest.packs.map((p) => ({ file: p.file, load: () => readJson(p.file) })),
+  ...extra.map((f) => ({ file: f, team: true, load: async () => JSON.parse(await readFile(f, 'utf8')) })),
+];
+
+for (const pack of sources) {
+  const data = await pack.load();
+  if (pack.team) {
+    const meta = data.pack || {};
+    if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(meta.id || '')) fail(pack.file, 'pack.id must be a slug like fintech-java-spring');
+    if (!isText(meta.name, 2) || meta.name.length > 60) fail(pack.file, 'pack.name is required (2 to 60 characters)');
+    if (meta.description && meta.description.length > 300) fail(pack.file, 'pack.description must be 300 characters or fewer');
+  }
   if (!Array.isArray(data.snippets)) { fail(pack.file, 'missing "snippets" array'); continue; }
 
   for (const s of data.snippets) {

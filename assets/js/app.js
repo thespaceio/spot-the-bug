@@ -5,7 +5,7 @@ import { loadContent } from './engine.js';
 import { $, $$, h, icon, reduceMotion } from './dom.js';
 import { ctx } from './context.js';
 import { auth, isReady, onAuthChange, startAuth } from './auth.js';
-import { checkTeam, onlineEnabled } from './online.js';
+import { checkTeam, onlineEnabled, teamPack } from './online.js';
 import { renderHome } from './views/home.js';
 import { renderRound, confirmLeave } from './views/round.js';
 import { renderExam, confirmLeaveExam } from './views/exam.js';
@@ -20,6 +20,8 @@ import { renderProgress } from './views/progress.js';
 import { renderCertCheck } from './views/certcheck.js';
 import { renderClassroom } from './views/classroom.js';
 import { renderModerate } from './views/moderate.js';
+import { renderTeams } from './views/teams.js';
+import { renderTeamAdmin } from './views/teamadmin.js';
 import { cleanClassCode } from './online.js';
 import { startSync, myGames } from './sync.js';
 import { history as games, prefs } from './storage.js';
@@ -43,9 +45,11 @@ const VIEWS = {
   cert: renderCertCheck,
   class: renderClassroom,
   moderate: renderModerate,
+  teams: renderTeams,
+  teamadmin: renderTeamAdmin,
 };
 // Screens that have their own link (?scoreboard and so on).
-const LINKED = ['scoreboard', 'progress', 'class', 'account', 'about', 'privacy', 'live', 'cert', 'moderate', 'guide'];
+const LINKED = ['scoreboard', 'progress', 'class', 'account', 'about', 'privacy', 'live', 'cert', 'moderate', 'guide', 'teams', 'teamadmin'];
 
 const NAV = [
   { id: 'home', label: 'Play', short: 'Play', icon: 'play' },
@@ -55,7 +59,7 @@ const NAV = [
   { id: 'about', label: 'About', short: 'About', icon: 'info' },
   { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
 ];
-const NAV_FOR = { guide: 'about', round: 'home', exam: 'progress', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
+const NAV_FOR = { guide: 'about', round: 'home', exam: 'progress', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account', teams: 'about', teamadmin: 'account' };
 
 let cleanup = null;
 const START = new URLSearchParams(location.search);   // read before the address is tidied
@@ -174,7 +178,23 @@ async function checkTeamLink() {
     badge.hidden = false;
   } catch (err) {
     ctx.teamStatus.error = err.message;
+    return null;
   }
+  // The team's own snippet packs, mixed into its games.
+  if (!ctx.teamStatus.info.packs?.length) return null;
+  try {
+    return (await teamPack(ctx.team)).snippets;
+  } catch (err) {
+    console.warn('Team pack not loaded:', err.message);
+    return null;
+  }
+}
+
+/** Adds a team pack's snippets to the content (never replacing a public snippet). */
+function addPackSnippets(content, snippets) {
+  if (!snippets?.length) return;
+  const have = new Set(content.snippets.map((s) => s.id));
+  content.snippets.push(...snippets.filter((s) => !have.has(s.id)));
 }
 
 async function boot() {
@@ -188,7 +208,9 @@ async function boot() {
   // The opening scene plays while the snippets load; the first screen appears as its curtain lifts.
   const intro = wantsIntro(viewFromUrl()) ? playIntro({ ready: loading.catch(() => {}) }) : null;
   try {
-    [ctx.content] = await loading;
+    const [content, packSnippets] = await loading;
+    addPackSnippets(content, packSnippets);
+    ctx.content = content;
     if (intro) await intro.reveal;
   } catch (err) {
     console.error(err);

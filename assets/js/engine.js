@@ -93,7 +93,11 @@ export function freshFirst(list, recent = [], rng = Math.random) {
 // A full game mixes the kinds of code: at least one mobile and one config
 // snippet whenever the level has them, then the rest, freshest first.
 export function buildGame({ snippets, categories, level, rounds, recent = [], rng = Math.random }) {
-  const pool = freshFirst(snippets.filter((s) => s.difficulty === level.id), recent, rng);
+  const fresh = freshFirst(snippets.filter((s) => s.difficulty === level.id), recent, rng);
+  // A team's own pack snippets (s.teamPack, only loaded on that team's link) come first until they've been played.
+  const seen = new Set(recent);
+  const newPack = (s) => Boolean(s.teamPack) && !seen.has(s.id);
+  const pool = [...fresh.filter(newPack), ...fresh.filter((s) => !newPack(s))];
   const picked = [];
   for (const surface of ['mobile', 'config']) {
     const first = pool.find((s) => surfaceOf(s) === surface && !picked.includes(s));
@@ -115,12 +119,14 @@ export function buildPractice({ snippets, categories, level, surface, rounds = 1
 /**
  * Practise particular flaw types: other snippets with the same flaws, from
  * every level, easiest first. Each round keeps its own level's timer and
- * number of answer choices. `skip` leaves out snippets just played.
+ * number of answer choices. `skip` leaves out snippets just played, and `only`
+ * narrows the snippets further (a team pack's practice uses it).
  */
-export function buildFlawPractice({ snippets, categories, levels, flaws, skip = [], rounds = 10, recent = [], rng = Math.random }) {
+export function buildFlawPractice({ snippets, categories, levels, flaws, skip = [], rounds = 10, recent = [], rng = Math.random, only = null }) {
   const order = Object.keys(levels);
-  const want = new Set(flaws);
-  const pool = freshFirst(snippets.filter((s) => want.has(s.category) && !skip.includes(s.id) && levels[s.difficulty]), recent, rng)
+  const want = flaws ? new Set(flaws) : null;   // null: any flaw type (with `only`, e.g. a team pack)
+  const pool = freshFirst(snippets.filter((s) => (!want || want.has(s.category)) && (!only || only(s))
+    && !skip.includes(s.id) && levels[s.difficulty]), recent, rng)
     .slice(0, rounds)
     .sort((a, b) => order.indexOf(a.difficulty) - order.indexOf(b.difficulty));
   return pool.map((snippet, index) => {

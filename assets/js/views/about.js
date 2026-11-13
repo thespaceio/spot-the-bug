@@ -35,7 +35,7 @@ export function renderAbout(root) {
       h('section', { class: 'panel card' },
         h('h2', { text: 'Classes, teams and bootcamps' }),
         h('p', {}, 'Lecturers and trainers can ', h('a', { href: '?class', onclick: (e) => { e.preventDefault(); ctx.go('class', { code: '' }); }, text: 'run a class' }), ' for free: share a code, everyone plays the same snippets, then go through the answers together.'),
-        h('p', { text: 'Companies and bootcamps can also get a private team board, open every day, for staff training and cohorts.' }),
-        h('p', {}, 'Ask at ', h('a', { href: `mailto:${CONTACT_EMAIL}?subject=Spot%20the%20Bug%20team%20board`, text: CONTACT_EMAIL }), '.'))),
+        h('p', { text: 'Companies and bootcamps can also get a private team board, open every day, with reports for their leads and snippets written for their stack.' }),
+        h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('teams') }, 'Spot the Bug for teams ', icon('arrow', 'icon icon-sm')))),
     h('p', { class: 'fine-print', text: `Spot the Bug v${APP.version}` }));
 }

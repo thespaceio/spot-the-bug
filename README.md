@@ -8,6 +8,14 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.17.0
+
+- **Team admins** (`?teamadmin`). People at a client can see their own team's results and nobody else's: players, games and accuracy for 7, 30, 90 or 365 days, each level, each player, and every flaw type, weakest first. They can download it as CSV, print it or save it as a PDF, and make a new team link. Th3 SpaceIO adds them with `arcade.add_team_admin`; moderators can see every team. Account shows a "Team admin" panel to them.
+- **Team packs.** Snippets written for one client's stack, kept only in the database (`arcade.stb_packs`, `arcade.stb_pack_snippets`), never in this repository. Players on that team's link get them first in their games and can practise them from the home page. A game with pack snippets can only be posted to a board of a team that has the pack, and classes never use them. Load a pack with `scripts/pack-sql.mjs`; the first sample is "Fintech on Java/Spring" (6 snippets, in the private repository).
+- **Class results as CSV.** Teachers can download the class board and the round-by-round results from the class page.
+- **For teams** (`?teams`): what companies, bootcamps and universities get, how it works, and an email to ask for a quote. Linked from the footer and About.
+- Scores now keep their snippet IDs (`arcade.scores.snippets`), so team reports can break results down by flaw type. Migration `20261114090000_arcade_teams.sql`.
+
 ## What's new in v0.16.0
 
 - **60 new snippets, so 120 in all, 40 per level** (`BEG-021`..`040`, `INT-021`..`040`, `ADV-021`..`040`), each with notes on the lines that look suspicious but aren't.
@@ -117,7 +125,7 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 - Explanation, fix summary and vulnerable vs fixed code after every round
 - Results screen with focus areas (the flaw types you missed) and a round by round review
 - Shared online scoreboard: everyone's best score per level, re-scored on the server so the browser can't fake a total
-- Private team boards for licensed companies and bootcamps, opened with a secret team link
+- Private team boards for licensed companies and bootcamps, opened with a secret team link, with team admin reports (CSV and PDF) and team-only snippet packs
 - Scores also saved on the device, used when the online board can't be reached
 - Keyboard play: ↑ ↓ to move between lines, Enter to select, number keys to pick a type, L to lock in
 - Progress per level, flaw type and kind of code, synced to the account when signed in
@@ -382,6 +390,42 @@ select name, level, score, accuracy, best_streak, created_at
 from arcade.scores where team_id = (select id from arcade.teams where slug = 'acme-bank')
 order by created_at desc;
 ```
+
+### Team admins
+
+A team admin is someone at the client (a security lead, an instructor) who sees the team's results on `?teamadmin`. They sign in with their own Spot the Bug or LureLens account, then you add their username:
+
+```sql
+select arcade.add_team_admin('acme-bank', 'their-username');
+select arcade.remove_team_admin('acme-bank', 'their-username');
+```
+
+They can also make a new team link themselves (the old link stops working).
+
+### Team packs
+
+A pack is a set of snippets written for one client, in the same format as `data/snippets/*.json`, inside a file like:
+
+```json
+{ "pack": { "id": "fintech-java-spring", "name": "Fintech on Java/Spring", "description": "..." },
+  "snippets": [ { "id": "FJS-001", "difficulty": "beginner", "...": "..." } ] }
+```
+
+Keep pack files out of this repository (they belong to the client). Check one and load it:
+
+```bash
+node scripts/validate-snippets.mjs --pack path/to/pack.json     # same rules as the public snippets
+node scripts/pack-sql.mjs path/to/pack.json > pack.sql            # then run pack.sql in the SQL editor
+```
+
+Then give it to a team (and take it away again) with:
+
+```sql
+select arcade.grant_team_pack('acme-bank', 'fintech-java-spring');
+select arcade.revoke_team_pack('acme-bank', 'fintech-java-spring');
+```
+
+Snippet IDs must not clash with the public ones (use your own three letters, like `FJS-001`). Players on the team link get the pack's snippets first in their games until they've played them, and a "Practise" button on the home page.
 
 ## Content
 

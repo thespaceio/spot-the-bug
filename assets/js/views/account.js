@@ -7,7 +7,7 @@ import {
   auth, isReady, onAuthChange, sendCode, verifyCode, quickJoin, addEmail, confirmEmail,
   saveProfile, signOut, deleteAccount,
 } from '../auth.js';
-import { isModerator } from '../online.js';
+import { isModerator, myTeams } from '../online.js';
 
 // Form drafts survive re-renders (for example when sign-in finishes loading).
 const draft = { email: '', code: '', codeSentTo: '', addEmail: '', addCode: '', addSentTo: '', editing: false, deleting: false, confirm: '' };
@@ -68,6 +68,7 @@ function page() {
   return [head, h('div', { class: 'account-stack stagger-children' }, h('span', { hidden: true }),
     returnBanner(),
     summaryPanel(),
+    teamAdminPanel(),
     moderatorPanel(),
     auth.anonymous ? keepAccountPanel() : null,
     dangerPanel()), privacyNote()];
@@ -193,6 +194,21 @@ function summaryPanel() {
     h('div', { class: 'btn-row' },
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { draft.editing = true; ctx.go('account'); } }, icon('edit', 'icon icon-sm'), 'Edit profile'),
       h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => signOut() }, icon('logout', 'icon icon-sm'), 'Sign out')));
+}
+
+// Shown only to the admins of a licensed team (Th3 SpaceIO adds them).
+function teamAdminPanel() {
+  const slot = h('div', { hidden: true });
+  myTeams().then((teams) => {
+    const mine = teams.filter((t) => t.admin);
+    if (!mine.length || !slot.isConnected) return;
+    slot.hidden = false;
+    slot.replaceChildren(h('section', { class: 'panel card' },
+      h('h2', {}, icon('users', 'icon icon-sm icon-green'), mine.length === 1 ? ` ${mine[0].name}` : ' Your teams'),
+      h('p', { class: 'muted', text: 'You\'re a team admin. See who is playing, how they are doing and which flaw types need work, and download reports.' }),
+      h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => ctx.go('teamadmin') }, 'Open team admin', icon('arrow', 'icon icon-sm')))));
+  }).catch(() => {});
+  return slot;
 }
 
 // Shown only to LureLens/Spot the Bug moderators, once the check comes back.

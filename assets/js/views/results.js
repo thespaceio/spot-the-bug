@@ -8,7 +8,7 @@ import { syncHistory } from '../sync.js';
 import { drawShareCard, shareText } from '../draw.js';
 import { SITE_URL } from '../config.js';
 import { boardTable } from './board.js';
-import { startGame, startPractice, startFlawPractice } from './round.js';
+import { startGame, startPractice, startFlawPractice, startPackPractice, packName } from './round.js';
 
 export function renderResults(root) {
   const r = ctx.result;
@@ -76,7 +76,7 @@ export function renderResults(root) {
     r.practice
       ? h('div', { class: 'actions' },
         h('button', { class: 'btn btn-primary', type: 'button', text: 'Practise again',
-          onclick: () => (r.practice === 'flaws' ? startFlawPractice(r.flaws || [], []) : startPractice(lvl.id, r.practice)) }),
+          onclick: () => (r.pack ? startPackPractice(r.pack) : r.practice === 'flaws' ? startFlawPractice(r.flaws || [], []) : startPractice(lvl.id, r.practice)) }),
         h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => startGame(lvl.id), text: `Play a full ${lvl.label} game` }))
       : r.classInfo
       ? h('div', { class: 'actions' },
@@ -151,6 +151,7 @@ function practiceContents(r) {
 
 /** "Weak spots" or the one flaw type a flaw practice game drilled. */
 export function practiceName(r) {
+  if (r.pack) return packName(r.pack);
   const names = (r.flaws || []).map((id) => category(id).name);
   return names.length === 1 ? names[0] : 'Your weak spots';
 }

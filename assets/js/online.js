@@ -236,6 +236,31 @@ export async function classDebrief(code) {
 
 export const classTopic = (code) => `arcade:class:${cleanClassCode(code)}`;
 
+// ---------- teams ----------
+
+const LEVEL_IDS = ['beginner', 'intermediate', 'advanced'];
+const isSnippet = (x) => x && typeof x === 'object' && /^[A-Z]{3}-\d{3}$/.test(x.id || '') && LEVEL_IDS.includes(x.difficulty)
+  && typeof x.pack === 'string' && Array.isArray(x.code) && x.code.every((l) => typeof l === 'string')
+  && Number.isInteger(x.vulnerableLine) && typeof x.category === 'string' && x.fix && Array.isArray(x.fix.code);
+
+/** A team's own snippet packs (only for players with the team link): { packs, snippets }. */
+export async function teamPack(team) {
+  const res = await rpc('arcade_team_pack', { p_slug: team.slug, p_key: team.key });
+  return {
+    packs: Array.isArray(res?.packs) ? res.packs : [],
+    snippets: (Array.isArray(res?.snippets) ? res.snippets : []).filter(isSnippet)
+      .map(({ pack, ...s }) => ({ ...s, teamPack: pack })),
+  };
+}
+
+/** The teams the signed-in player looks after (team admins; moderators see every team). */
+export async function myTeams() {
+  const rows = await rpc('arcade_my_teams', {});
+  return Array.isArray(rows) ? rows : [];
+}
+export const teamReport = (slug, days = 30) => rpc('arcade_team_report', { p_slug: slug, p_days: days });
+export const teamNewLink = (slug) => rpc('arcade_team_new_link', { p_slug: slug });
+
 // ---------- moderation (LureLens moderators) ----------
 
 export const isModerator = () => rpc('is_moderator', {}).then(Boolean);

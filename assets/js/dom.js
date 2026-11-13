@@ -55,6 +55,9 @@ const ICONS = {
   cloud: 'M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.1 9.1 4.5 4.5 0 0 0 7 18z',
   share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
   download: 'M12 3v12M7 10l5 5 5-5M4 21h16',
+  print: 'M6 9V3h12v6M6 18H4v-7h16v7h-2M6 14h12v7H6z',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.1 1.1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.1-1.1',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
 };
 
 export function icon(name, cls = 'icon') {

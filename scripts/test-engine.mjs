@@ -160,6 +160,23 @@ for (const lvl of Object.values(LEVELS)) {
   assert.ok(repeatFree > 250, `${lvl.id}: most second games have no repeats (${repeatFree}/300)`);
 }
 
+// A team pack's snippets come first in that team's games until they've been played,
+// and pack practice uses only the pack.
+{
+  const lvl = LEVELS.beginner;
+  const levelPack = JSON.parse(await readFile(new URL('../data/snippets/beginner.json', import.meta.url), 'utf8'));
+  const packed = levelPack.snippets.slice(0, 3).map((x) => ({ ...x, id: `PCK-00${x.id.slice(-1)}`, teamPack: 'test-pack' }));
+  const all = [...levelPack.snippets, ...packed];
+  for (let seed = 1; seed <= 50; seed++) {
+    const ids = buildGame({ snippets: all, categories, level: lvl, rounds: 10, rng: makeRng(seed) }).map((r) => r.snippet.id);
+    assert.ok(packed.every((x) => ids.includes(x.id)), 'unplayed pack snippets are in the game');
+    const later = buildGame({ snippets: all, categories, level: lvl, rounds: 10, recent: packed.map((x) => x.id), rng: makeRng(seed) }).map((r) => r.snippet.id);
+    assert.ok(packed.every((x) => !later.includes(x.id)), 'played pack snippets wait their turn');
+  }
+  const practice = buildFlawPractice({ snippets: all, categories, levels: LEVELS, flaws: null, only: (x) => x.teamPack === 'test-pack', rng: makeRng(2) });
+  assert.deepEqual(practice.map((r) => r.snippet.id).sort(), packed.map((x) => x.id).sort());
+}
+
 // Practising a flaw: other snippets with that flaw, easiest level first, each
 // round with its own level's choices.
 {

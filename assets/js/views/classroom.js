@@ -2,6 +2,7 @@
 // everyone plays the same ten snippets once, and the class board and the
 // round-by-round debrief fill in live. After LureLens's Classroom.
 import { LEVELS, SITE_URL } from '../config.js';
+import { downloadCsv } from '../csv.js';
 import { h, icon, pageHead, fill, fmt, dateLabel } from '../dom.js';
 import { ctx, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
@@ -194,6 +195,23 @@ function showClass(root, info, cleanups) {
   load();
 }
 
+/** The class board and the round-by-round results as one CSV file, for the teacher's records. */
+async function exportClass(info) {
+  const [rows, rounds] = await Promise.all([classBoard(info.code), classDebrief(info.code)]);
+  const pct = (n, of) => (of ? Math.round((n * 100) / of) : 0);
+  const snippet = (id) => ctx.content.snippets.find((x) => x.id === id);
+  downloadCsv(`spot-the-bug-class-${info.code}.csv`, [
+    ['Spot the Bug class', info.name, `Code ${info.code}`, LEVELS[info.level]?.label || info.level],
+    [],
+    ['Rank', 'Player', 'Score', 'Accuracy (%)', 'Best streak', 'Played at'],
+    ...rows.map((r) => [r.rank, r.name, r.score, r.accuracy, r.bestStreak, String(r.at || '').replace('T', ' ').slice(0, 16)]),
+    [],
+    ['Round', 'Snippet', 'Title', 'Flaw type', 'Played', 'Found the line (%)', 'Fully right (%)', 'Most common wrong answer'],
+    ...rounds.map((d) => [d.round, d.id, snippet(d.id)?.title || '', category(snippet(d.id)?.category)?.name || '',
+      d.played, pct(d.lineFound, d.played), pct(d.clean, d.played), d.topWrong ? category(d.topWrong).name : '']),
+  ]);
+}
+
 function studentPanel(info) {
   const head = h('h2', { id: 'play-heading' }, icon('play', 'icon icon-sm icon-green'), ' Your game');
   const wrap = (...kids) => h('section', { class: `panel card${info.my_result ? '' : ' panel-accent'}`, 'aria-labelledby': 'play-heading' }, head, ...kids);
@@ -240,7 +258,9 @@ function teacherPanel(info) {
       }, 'Copy link'),
       h('a', { class: 'btn btn-ghost', href: `?live&class=${info.code}` }, icon('screen', 'icon icon-sm'), 'Big screen')),
     copied,
-    h('div', { class: 'btn-row' }, toggle), err,
+    h('div', { class: 'btn-row' }, toggle,
+      h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => exportClass(info).catch((ex) => { err.textContent = ex.message; }) },
+        icon('download', 'icon icon-sm'), 'Download results (CSV)')), err,
     h('p', { class: 'hint', text: 'Students who open the link or scan the code land on this class. "Remove" next to a name takes it off the board.' }));
 }
 

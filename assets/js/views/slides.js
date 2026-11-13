@@ -89,7 +89,7 @@ const SLIDES = [
   { tag: 'LIVE SCOREBOARD', title: 'Sign in or quick join, then climb the live board.', sub: 'One account for Spot the Bug and LureLens. Quick join needs nothing but a username.', visual: 'board' },
   { tag: 'CERTIFICATE', title: 'Pass the exam at every level. Earn the certificate.', sub: 'Ten snippets you won\'t have seen in the game, per level. Then print it, add it to LinkedIn, and let anyone check it online.', visual: 'cert' },
   { tag: 'CLASSROOM', title: 'Teaching secure coding? Run a class.', sub: 'Share a code, everyone plays the same ten snippets, then go through the answers round by round on the projector.', visual: 'classroom' },
-  { tag: 'TEAMS', title: 'Train your developers on a private team board.', sub: 'Companies and bootcamps get their own link and leaderboard, open every day.', visual: 'team' },
+  { tag: 'TEAMS', title: 'Train your developers on a private team board.', sub: 'Your own link and leaderboard, reports for your leads, and snippets written for your stack.', visual: 'team' },
 ];
 
 export function heroSlides({ onPlay, onScoreboard }) {

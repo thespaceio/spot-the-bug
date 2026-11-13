@@ -1197,3 +1197,8 @@ html.has-world .stage-copy::before {
 .focus-actions-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .focus-guide { font-size: 13px; }
 .weak-actions { margin-top: 8px; align-items: center; }
+
+/* v0.16: the "your stack" slide */
+.mini-stack { display: flex; flex-wrap: wrap; gap: 8px; align-content: center; }
+.mini-stack .badge { font-family: var(--font-mono); animation: fade-in .4s ease both; animation-delay: calc(var(--i, 0) * 60ms); }
+@media (prefers-reduced-motion: reduce) { .mini-stack .badge { animation: none; } }

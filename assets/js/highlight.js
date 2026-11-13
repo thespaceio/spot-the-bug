@@ -1,6 +1,6 @@
-// Minimal syntax highlighter for the game's backend code (JavaScript, Python,
-// PHP), mobile code (Kotlin, Dart, Android XML) and config files (Firebase
-// rules, SQL, Dockerfile, YAML, nginx).
+// Minimal syntax highlighter for the game's backend code (JavaScript,
+// TypeScript, Python, PHP, Java, C#, Go), mobile code (Kotlin, Dart, Android
+// XML) and config files (Firebase rules, SQL, Dockerfile, YAML, nginx).
 // It builds DOM nodes with textContent only, never innerHTML, because many
 // snippets deliberately contain HTML and script payloads.
 
@@ -14,6 +14,10 @@ const KW = {
   dockerfile: 'FROM AS RUN CMD COPY ADD ENV ARG WORKDIR USER EXPOSE ENTRYPOINT LABEL VOLUME HEALTHCHECK SHELL',
   yaml: 'true false null yes no on',
   nginx: 'server listen server_name root index location alias autoindex proxy_pass try_files include fastcgi_pass fastcgi_param ssl_certificate ssl_certificate_key return deny allow expires internal auth_request http2 ssl on off',
+  typescript: 'abstract any as async await boolean break case catch class const continue declare default delete do else enum export extends false finally for from function if implements import in instanceof interface let new null number of private protected public readonly return static string super switch this throw true try type typeof undefined unknown var void while yield',
+  java: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new null package private protected public record return short static super switch synchronized this throw throws transient true false try var void volatile while',
+  csharp: 'abstract as async await base bool break byte case catch char class const continue decimal default delegate do double else enum event false finally float for foreach get if in int interface internal is lock long namespace new null object out override params private protected public readonly record ref return sealed set short static string struct switch this throw true try typeof uint ulong using var virtual void while',
+  go: 'break case chan const continue default defer else fallthrough false for func go goto if import interface map nil package range return select struct switch true type var',
   php: 'array as break case catch class const continue declare default do echo else elseif empty endforeach endif exit false finally fn for foreach function global if include isset list match new null print private protected public require require_once return static switch throw true try use while',
 };
 
@@ -28,6 +32,10 @@ const RULES = {
 // Config and markup languages: comments, strings, numbers and their own names.
 const C_LIKE = (extra = '') => new RegExp(String.raw`(?<comment>\/\/.*$|\/\*.*?\*\/)|(?<string>${STR})${extra}|(?<number>\b\d[\d_]*(?:\.\d+)?\b)|(?<word>[A-Za-z_$][\w$]*)`, 'g');
 RULES.kotlin = C_LIKE(String.raw`|(?<deco>@[A-Za-z_]\w*)`);
+RULES.typescript = RULES.javascript;
+RULES.java = C_LIKE(String.raw`|(?<deco>@[A-Za-z_]\w*)`);
+RULES.csharp = C_LIKE(String.raw`|(?<deco>(?<=^\s*|[(,]\s*)\[[A-Za-z_][\w.]*(?:\(.*?\))?\])`);   // [Attributes], not items[i]
+RULES.go = new RegExp(String.raw`(?<comment>\/\/.*$|\/\*.*?\*\/)|(?<string>${STR}|` + '`[^`]*`?' + String.raw`)|(?<number>\b\d[\d_]*(?:\.\d+)?\b)|(?<word>[A-Za-z_]\w*)`, 'g');
 RULES.dart = C_LIKE(String.raw`|(?<deco>@[A-Za-z_]\w*)`);
 RULES.rules = C_LIKE();
 RULES.sql = new RegExp(String.raw`(?<comment>--.*$)|(?<string>'(?:''|[^'])*'?)|(?<number>\b\d+\b)|(?<word>[A-Za-z_][\w.]*)`, 'gi');
@@ -78,7 +86,7 @@ export function highlightLine(text, language) {
 }
 
 export const LANGUAGE_LABEL = {
-  javascript: 'JavaScript', python: 'Python', php: 'PHP',
+  javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python', php: 'PHP', java: 'Java', csharp: 'C#', go: 'Go',
   kotlin: 'Kotlin', dart: 'Dart', xml: 'Android XML',
   rules: 'Security Rules', sql: 'SQL', dockerfile: 'Dockerfile', yaml: 'YAML', nginx: 'nginx',
 };

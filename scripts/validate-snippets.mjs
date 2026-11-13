@@ -12,8 +12,8 @@ const readJson = async (rel) => JSON.parse(await readFile(path.join(dataDir, rel
 const LEVELS = ['beginner', 'intermediate', 'advanced'];
 // Languages per surface: backend code, mobile apps, and config and cloud files.
 const SURFACES = {
-  backend: ['javascript', 'python', 'php'],
-  mobile: ['kotlin', 'dart', 'xml'],
+  backend: ['javascript', 'typescript', 'python', 'php', 'java', 'csharp', 'go'],
+  mobile: ['kotlin', 'java', 'dart', 'xml'],
   config: ['rules', 'sql', 'dockerfile', 'yaml', 'nginx'],
 };
 const LANGUAGES = Object.values(SURFACES).flat();

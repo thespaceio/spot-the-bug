@@ -6,6 +6,16 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.16',
+    title: 'Twice as many snippets',
+    items: [
+      '60 new snippets, so 120 in all: 40 per level.',
+      'Six new flaw types: race conditions, broken authentication, logging and alerting failures, mass assignment, CSRF and prompt injection in AI features.',
+      'Code in Java, C#, Go and TypeScript now, as well as JavaScript, Python, PHP, Kotlin and Flutter.',
+      'The certificate exam pool is bigger too, and covers all 26 flaw types.',
+    ],
+  },
+  {
     version: '0.15',
     title: 'Fairer class boards',
     items: [

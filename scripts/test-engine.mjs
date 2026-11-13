@@ -117,7 +117,7 @@ assert.equal(r.tenthsLeft, 270);
 // Same total as the server for a game of the new beginner snippets, all clean
 // with 30 of 60 seconds left (checked against arcade_submit_spot_the_bug: 2100).
 {
-  const fresh = pack.snippets.filter((x) => surfaceOf(x) !== 'backend');
+  const fresh = pack.snippets.filter((x) => surfaceOf(x) !== 'backend' && Number(x.id.slice(4)) <= 20);
   let streak = 0;
   const results = fresh.map((sn) => {
     const sc = scoreRound({ snippet: sn, pickedLine: sn.vulnerableLine, pickedType: sn.category, secondsLeft: 30, totalSeconds: 60, multiplier: 1, streak });
@@ -153,7 +153,9 @@ for (const lvl of Object.values(LEVELS)) {
     if (!overlap) repeatFree += 1;
     const unseen = levelPack.snippets.map((x) => x.id).filter((id) => !g1.includes(id) && !g2.includes(id));
     const g3 = buildGame({ ...args, recent: [...g2, ...g1] }).map((r) => r.snippet.id);
-    for (const id of unseen) assert.ok(g3.includes(id), 'a third game uses anything still unseen');
+    if (unseen.length <= 10) for (const id of unseen) assert.ok(g3.includes(id), 'a third game uses anything still unseen');
+    // (a seen one only fills the mobile or config slot when every unseen one of that kind is used up)
+    else assert.ok(g3.filter((id) => !unseen.includes(id)).length <= 2, 'a third game is unseen snippets while there are enough');
   }
   assert.ok(repeatFree > 250, `${lvl.id}: most second games have no repeats (${repeatFree}/300)`);
 }

@@ -620,6 +620,192 @@
           "why": "Every one of those 30 days' files is public until then."
         }
       ]
+    },
+    "race-condition": {
+      "signs": [
+        "Read a balance or count, check it, then write in separate steps without a lock or transaction.",
+        "\"Check then act\" on limits: one-time codes, vouchers, withdrawals, seats or stock.",
+        "Two quick identical requests (or a double tap) could both pass the check."
+      ],
+      "fixes": [
+        "Do the check and the change in one atomic statement (UPDATE ... WHERE balance >= amount).",
+        "Or lock the row (SELECT ... FOR UPDATE) inside a transaction, or use a unique constraint.",
+        "Make requests idempotent with a key, so a repeat does nothing."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "if (wallet.balance >= amt) await debit(wallet.id, amt);",
+        "good": "UPDATE wallets SET balance = balance - $1 WHERE id = $2 AND balance >= $1"
+      },
+      "decoys": [
+        {
+          "fix": "Disable the Pay button after the first tap.",
+          "why": "Attackers send requests directly, in parallel. The server has to make the check and change one step."
+        },
+        {
+          "fix": "Check the balance twice before debiting.",
+          "why": "Two parallel requests can pass both checks before either debit happens."
+        },
+        {
+          "fix": "Add a short delay before the debit.",
+          "why": "Delays make the race window bigger, not smaller."
+        }
+      ]
+    },
+    "broken-auth": {
+      "signs": [
+        "Tokens decoded but never verified (jwt.decode without verify, alg none accepted).",
+        "One-time codes, PINs or passwords that can be tried without a limit.",
+        "Sessions that never expire, or that survive a password change or sign-out; trust in client-side checks."
+      ],
+      "fixes": [
+        "Verify every token's signature, algorithm, expiry and audience with a trusted library.",
+        "Limit attempts per account and per IP, and lock or slow down after a few failures.",
+        "Expire sessions, and end them on sign-out and password change."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "claims = jwt.decode(token, options={\"verify_signature\": False})",
+        "good": "claims = jwt.decode(token, KEY, algorithms=[\"HS256\"], audience=\"wallet-api\")"
+      },
+      "decoys": [
+        {
+          "fix": "Make the one-time code 6 digits instead of 4.",
+          "why": "A million guesses is quick for a script. Without an attempt limit, longer codes only slow it down a little."
+        },
+        {
+          "fix": "Check the token's expiry date before using it.",
+          "why": "If the signature isn't verified, the attacker writes any expiry they like."
+        },
+        {
+          "fix": "Hide the error message so attackers don't know which part was wrong.",
+          "why": "Nice to have, but guessing still works. Limits and verification are what stop it."
+        }
+      ]
+    },
+    "logging-failures": {
+      "signs": [
+        "Sign-ins, failed sign-ins, payouts, permission changes or admin actions that leave no record.",
+        "Errors swallowed silently (catch and ignore), or logs nobody watches.",
+        "Logs that anyone with access can change or delete, or that miss who did what and when."
+      ],
+      "fixes": [
+        "Log security events with who, what, when and the outcome (without secrets).",
+        "Send them somewhere tamper-resistant and alert on suspicious patterns.",
+        "Never swallow errors: log them with a reference and handle them."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "} catch (e) { /* ignore */ }",
+        "good": "} catch (e) { audit.warn('payout_failed', { userId, ref, reason: e.code }); throw e; }"
+      },
+      "decoys": [
+        {
+          "fix": "Turn on verbose logging for everything.",
+          "why": "Noise hides the events that matter and may log secrets. Log the security events, and alert on them."
+        },
+        {
+          "fix": "Write logs to a file on the same server.",
+          "why": "An attacker on that server can delete them, and nobody is alerted."
+        },
+        {
+          "fix": "Show users an error when something fails.",
+          "why": "Users seeing errors doesn't tell the security team anything."
+        }
+      ]
+    },
+    "mass-assignment": {
+      "signs": [
+        "The whole request body copied onto a record (Object.assign, **request.json, update(req.body)).",
+        "Models with sensitive fields (role, isAdmin, balance, verified, tenant) next to editable ones.",
+        "Frameworks binding request data to entities automatically."
+      ],
+      "fixes": [
+        "Copy only an allowlist of fields the user may change.",
+        "Use separate input objects (DTOs) for each action.",
+        "Set sensitive fields only in server code that checks permission."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "await User.update(req.body, { where: { id: req.user.id } })",
+        "good": "const { name, phone } = req.body; await User.update({ name, phone }, { where: { id: req.user.id } })"
+      },
+      "decoys": [
+        {
+          "fix": "Remove the role field from the edit form.",
+          "why": "Attackers add it to the request themselves. The server must ignore it."
+        },
+        {
+          "fix": "Validate that every field in the body is a string.",
+          "why": "\"admin\" is a string. Types don't say which fields a user may set."
+        },
+        {
+          "fix": "Only allow the update for signed-in users.",
+          "why": "The attacker is signed in. The problem is which fields they can write."
+        }
+      ]
+    },
+    "csrf": {
+      "signs": [
+        "State-changing requests (transfers, settings, deletions) that rely only on a cookie to know who's asking.",
+        "Cookies without SameSite, and no CSRF token or origin check.",
+        "Actions done with GET requests."
+      ],
+      "fixes": [
+        "Use CSRF tokens (or the framework's built-in protection) on every state-changing request.",
+        "Set cookies to SameSite=Lax or Strict, and check the Origin header.",
+        "Never change state on GET."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "app.post('/transfer', requireSession, transfer)",
+        "good": "app.post('/transfer', requireSession, csrfProtection, transfer)"
+      },
+      "decoys": [
+        {
+          "fix": "Only accept POST requests for transfers.",
+          "why": "A hidden form on another site can POST too."
+        },
+        {
+          "fix": "Check the user is signed in before transferring.",
+          "why": "The forged request comes from the user's own browser, with their session."
+        },
+        {
+          "fix": "Use HTTPS for the whole site.",
+          "why": "HTTPS protects the connection, not who made the browser send the request."
+        }
+      ]
+    },
+    "prompt-injection": {
+      "signs": [
+        "User text, web pages, emails or documents pasted into a model's prompt next to its instructions.",
+        "Model output trusted to call tools, run code, send money or reveal data without checks.",
+        "System prompts that hold secrets or rules the app relies on."
+      ],
+      "fixes": [
+        "Treat all model input as untrusted: keep instructions separate and never rely on the prompt to enforce rules.",
+        "Check permissions in code before any tool runs, and limit tools to what the user may already do.",
+        "Ask a person to confirm risky actions, and keep secrets out of prompts."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "prompt = f\"{RULES}\\nCustomer says: {message}\\nYou may call refund().\"",
+        "good": "if not can_refund(user, order): return deny()  # rules in code, not in the prompt"
+      },
+      "decoys": [
+        {
+          "fix": "Tell the model in the system prompt to ignore any instructions in user messages.",
+          "why": "Models can still be talked out of it. Rules have to be enforced in code."
+        },
+        {
+          "fix": "Remove the words \"ignore previous instructions\" from user input.",
+          "why": "There are endless other ways to phrase it, in any language."
+        },
+        {
+          "fix": "Use a bigger, newer model.",
+          "why": "Better models are harder to fool, not impossible. The tools still need permission checks."
+        }
+      ]
     }
   }
 }

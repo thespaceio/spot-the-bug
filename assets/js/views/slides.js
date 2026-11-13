@@ -44,6 +44,10 @@ const VISUALS = {
     ['SQL Injection', 'Server-Side Request Forgery', 'Path Traversal', 'Broken Access Control'].map((t, i) =>
       h('div', { class: `mini-option${i === 1 ? ' is-right' : ''}` }, i === 1 ? icon('check', 'icon icon-sm') : h('span', { class: 'mini-key', text: i + 1 }), h('span', { text: t })))),
 
+  stack: () => h('div', { class: 'mini-card mini-stack' },
+    ['JavaScript', 'TypeScript', 'Python', 'PHP', 'Java', 'C#', 'Go', 'Kotlin', 'Dart', 'YAML'].map((t, i) =>
+      h('span', { class: 'badge', style: { '--i': i }, text: t }))),
+
   fix: () => h('div', { class: 'mini-compare' },
     h('div', { class: 'mini-card' },
       h('div', { class: 'mini-top' }, h('span', { class: 'dot dot-red' }), h('span', { text: 'Vulnerable' })),
@@ -76,10 +80,11 @@ const VISUALS = {
 };
 
 const SLIDES = [
-  { tag: 'THE GAME', title: 'Can you spot the vulnerable line before the clock runs out?', sub: '60 short pieces of code, each with one security flaw. Three levels, one clock.', visual: 'game' },
-  { tag: 'MOBILE AND CLOUD', title: 'Not just the backend: apps and config too.', sub: 'Kotlin and Flutter apps, Firebase rules, Dockerfiles, GitHub Actions and nginx. Every game mixes them in.', visual: 'kinds' },
+  { tag: 'THE GAME', title: 'Can you spot the vulnerable line before the clock runs out?', sub: '120 short pieces of code, each with one security flaw. Three levels, one clock.', visual: 'game' },
+  { tag: 'MOBILE AND CLOUD', title: 'Not just the backend: apps and config too.', sub: 'Kotlin, Java and Flutter apps, Firebase rules, Dockerfiles, GitHub Actions and nginx. Every game mixes them in.', visual: 'kinds' },
+  { tag: 'YOUR STACK', title: 'Java, C#, Go, TypeScript and more.', sub: 'Spring, ASP.NET Core, Go services, React and Node alongside Python and PHP, plus AI features that trust the model too much.', visual: 'stack' },
   { tag: 'FINTECH', title: 'This transfer endpoint looks fine. Is it?', sub: 'Negative amounts, missing ownership checks, leaked payment keys. The bugs that drain wallets hide in ordinary code.', visual: 'fintech' },
-  { tag: 'OWASP TOP 10', title: 'SQL injection, SSRF or path traversal? Name the flaw.', sub: 'Twenty flaw types from the OWASP Top 10:2025 and the OWASP Mobile Top 10, in backend code, mobile apps and cloud config.', visual: 'owasp' },
+  { tag: 'OWASP TOP 10', title: 'SQL injection, SSRF or path traversal? Name the flaw.', sub: '26 flaw types from the OWASP Top 10:2025, the OWASP Mobile Top 10 and the OWASP Top 10 for LLM apps, from CSRF to prompt injection.', visual: 'owasp' },
   { tag: 'THE FIX', title: 'See the vulnerable line next to the fixed one.', sub: 'Every round ends with what went wrong, how an attacker would use it, and the fix.', visual: 'fix' },
   { tag: 'LIVE SCOREBOARD', title: 'Sign in or quick join, then climb the live board.', sub: 'One account for Spot the Bug and LureLens. Quick join needs nothing but a username.', visual: 'board' },
   { tag: 'CERTIFICATE', title: 'Pass the exam at every level. Earn the certificate.', sub: 'Ten snippets you won\'t have seen in the game, per level. Then print it, add it to LinkedIn, and let anyone check it online.', visual: 'cert' },

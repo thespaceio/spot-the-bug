@@ -204,6 +204,68 @@
       "surfaces": [
         "config"
       ]
+    },
+    {
+      "id": "race-condition",
+      "name": "Race Condition",
+      "owasp": "A06:2025 Insecure Design",
+      "cwe": "CWE-362",
+      "summary": "Two requests run at the same time and both pass a check that only one should, such as spending the same balance twice.",
+      "surfaces": [
+        "backend"
+      ]
+    },
+    {
+      "id": "broken-auth",
+      "name": "Broken Authentication",
+      "owasp": "A07:2025 Authentication Failures",
+      "cwe": "CWE-287",
+      "summary": "The app doesn't properly prove who someone is: tokens aren't verified, codes can be guessed without limit, or sessions never end.",
+      "surfaces": [
+        "backend",
+        "mobile"
+      ]
+    },
+    {
+      "id": "logging-failures",
+      "name": "Logging & Alerting Failures",
+      "owasp": "A09:2025 Security Logging & Alerting Failures",
+      "cwe": "CWE-778",
+      "summary": "Important security events aren't recorded or nobody is alerted, so attacks go unnoticed and can't be investigated.",
+      "surfaces": [
+        "backend",
+        "config"
+      ]
+    },
+    {
+      "id": "mass-assignment",
+      "name": "Mass Assignment",
+      "owasp": "A08:2025 Software or Data Integrity Failures",
+      "cwe": "CWE-915",
+      "summary": "The whole request body is copied onto a record, so users can set fields they should never control, like their role or balance.",
+      "surfaces": [
+        "backend"
+      ]
+    },
+    {
+      "id": "csrf",
+      "name": "Cross-Site Request Forgery (CSRF)",
+      "owasp": "A01:2025 Broken Access Control",
+      "cwe": "CWE-352",
+      "summary": "Another website makes a signed-in user's browser send a request the user never meant to, and the app accepts it.",
+      "surfaces": [
+        "backend"
+      ]
+    },
+    {
+      "id": "prompt-injection",
+      "name": "Prompt Injection",
+      "owasp": "LLM01:2025 Prompt Injection",
+      "cwe": "CWE-1427",
+      "summary": "Text from users or documents is fed to an AI model as instructions, so it can override the app's rules or trigger its tools.",
+      "surfaces": [
+        "backend"
+      ]
     }
   ],
   "mobileEdition": "OWASP Mobile Top 10:2024",

@@ -8,6 +8,13 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.16.0
+
+- **60 new snippets, so 120 in all, 40 per level** (`BEG-021`..`040`, `INT-021`..`040`, `ADV-021`..`040`), each with notes on the lines that look suspicious but aren't.
+- **Six new flaw types, 26 in all:** Race Condition (CWE-362), Broken Authentication (CWE-287), Logging & Alerting Failures (CWE-778), Mass Assignment (CWE-915), Cross-Site Request Forgery (CWE-352) and Prompt Injection (OWASP LLM01:2025, CWE-1427). Each has two snippets per level and a flaw guide entry.
+- **New languages:** Java (Spring, JDBC, JPA, Android), C# (ASP.NET Core, Entity Framework), Go (net/http, chi) and TypeScript (Express, Prisma, zod, React), with highlighting for each, plus PostgreSQL triggers and CloudFormation in config.
+- **Bigger exam pool:** 54 private snippets, 18 per level, covering all 26 flaw types. The server answer key has all 120 public snippets.
+
 ## What's new in v0.15.0
 
 - **Class games on the server's clock.** A class game is opened with `arcade_class_start`, recorded round by round like a ranked game, and posted with `arcade_class_submit_game`, which applies the same time caps as the scoreboard. The old `arcade_class_submit` is retired.
@@ -22,7 +29,7 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 
 ## What's new in v0.13.0
 
-- **Certificate exam.** The certificate now comes from an exam at each level, not from scoreboard games. Each exam is 10 snippets from a **private pool** that never appears in the game or in this repository (36 snippets, 12 per level, all 20 flaw types; content in the private repository `thespaceio/spot-the-bug-exam`, loaded only into `arcade.stb_exam_snippets`). The server sends each round's code only when that round starts, times it on its own clock, never sends the answer, and at the end returns only the accuracy and whether it passed (80%, 8 of 10 clean). One attempt per level per day; an unfinished attempt can be carried on for 2 hours. Exams are open every day. Start one from the certificate panel on **Progress** (`assets/js/views/exam.js`, migration `20261113120000_arcade_certificate_exam.sql`).
+- **Certificate exam.** The certificate now comes from an exam at each level, not from scoreboard games. Each exam is 10 snippets from a **private pool** that never appears in the game or in this repository (now 54 snippets, 18 per level, all 26 flaw types; content in the private repository `thespaceio/spot-the-bug-exam`, loaded only into `arcade.stb_exam_snippets`). The server sends each round's code only when that round starts, times it on its own clock, never sends the answer, and at the end returns only the accuracy and whether it passed (80%, 8 of 10 clean). One attempt per level per day; an unfinished attempt can be carried on for 2 hours. Exams are open every day. Start one from the certificate panel on **Progress** (`assets/js/views/exam.js`, migration `20261113120000_arcade_certificate_exam.sql`).
 - **Practice every day.** Practice by kind of code (home page) and by flaw type (results and Progress) is open every day; full games for the scoreboard stay on Game Night Fridays.
 - **Clock on or off for practice**, on the home page and Progress (remembered on the device). Full games and the exam always have the clock.
 
@@ -100,10 +107,10 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 
 - Three levels, all open: Beginner, Intermediate and Advanced
 - 10 timed rounds per game, score, streaks and a per round breakdown
-- 60 original snippets, 20 per level, each level covering all 20 vulnerability types once:
-  - 30 backend snippets in JavaScript (Node/Express), Python (Flask) and PHP
-  - 15 mobile app snippets in Kotlin, Dart (Flutter) and Android manifest XML
-  - 15 config and cloud snippets: Firebase and Supabase rules, Dockerfiles, GitHub Actions, Kubernetes and nginx
+- 120 original snippets, 40 per level, covering 26 vulnerability types (OWASP Top 10:2025, OWASP Mobile Top 10 and OWASP Top 10 for LLM applications):
+  - 78 backend snippets in JavaScript, TypeScript (Express, Prisma, React), Python (Flask, Django), PHP, Java (Spring, JPA), C# (ASP.NET Core) and Go
+  - 20 mobile app snippets in Kotlin, Java, Dart (Flutter) and Android manifest XML
+  - 22 config and cloud snippets: Firebase and Supabase rules, SQL, Dockerfiles, Docker Compose, GitHub Actions, Kubernetes, CloudFormation and nginx
 - Every game mixes in at least one mobile and one config snippet; practise one kind on its own from the home page
 - Intermediate snippets include a partial defence (an allowlist, a filter, a role check, an env variable) that looks safe but misses the real flaw
 - Advanced snippets hide the flaw in code that looks finished: second order SQL injection, `javascript:` links that survive escaping, zip slip, a `startswith` URL check, `yaml.Loader`, a cumulative refund rule and a debug header

@@ -49,7 +49,22 @@ export function totals(games) {
     clean,
     accuracy: rounds ? Math.round((clean / rounds) * 100) : 0,
     bestStreak: games.reduce((m, g) => Math.max(m, g.bestStreak || 0), 0),
+    ...fixTotals(games),
   };
+}
+
+/** "Which fix works?" answers: how many were answered and how many were right. */
+export function fixTotals(games) {
+  let fixAnswered = 0;
+  let fixRight = 0;
+  for (const g of games) {
+    for (const a of g.answers || []) {
+      if (typeof a.fixOk !== 'boolean') continue;
+      fixAnswered += 1;
+      if (a.fixOk) fixRight += 1;
+    }
+  }
+  return { fixAnswered, fixRight, fixRate: fixAnswered ? Math.round((fixRight / fixAnswered) * 100) : null };
 }
 
 /**

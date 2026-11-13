@@ -98,8 +98,30 @@ for (const pack of manifest.packs) {
       if (JSON.stringify(fix.code) === JSON.stringify(code)) fail(id, 'fix.code is identical to code');
       if (fix.code.includes(code[s.vulnerableLine - 1])) warn(id, 'the vulnerable line still appears unchanged in the fix');
     }
+    // lineNotes: why a tempting wrong line is fine, keyed by line number. Never on an answer line.
+    if (s.lineNotes !== undefined) {
+      if (typeof s.lineNotes !== 'object' || Array.isArray(s.lineNotes)) fail(id, 'lineNotes must be an object of line number to text');
+      else for (const [k, note] of Object.entries(s.lineNotes)) {
+        const n = Number(k);
+        if (!inRange(n, code.length) || !String(code[n - 1] || '').trim()) fail(id, `lineNotes line ${k} is blank or out of range`);
+        if (n === s.vulnerableLine || (s.acceptLines || []).includes(n)) fail(id, `lineNotes line ${k} is an answer line`);
+        if (!isText(note, 20)) fail(id, `lineNotes line ${k} needs a sentence`);
+      }
+    } else warn(id, 'no lineNotes (why tempting wrong lines are fine)');
   }
 }
+
+// The flaw guide: every flaw type needs signs, fixes, an example and three wrong fixes for the fix question.
+const guide = await readJson('guide.json');
+for (const id of categoryIds) {
+  const g = guide.flaws?.[id];
+  if (!g) { fail(id, 'missing from data/guide.json'); continue; }
+  if (!Array.isArray(g.signs) || g.signs.length < 2) fail(id, 'guide needs at least 2 signs');
+  if (!Array.isArray(g.fixes) || g.fixes.length < 2) fail(id, 'guide needs at least 2 fixes');
+  if (!g.example?.bad || !g.example?.good || !g.example?.language) fail(id, 'guide example needs language, bad and good');
+  if (!Array.isArray(g.decoys) || g.decoys.length < 2 || g.decoys.some((d) => !isText(d.fix, 15) || !isText(d.why, 20))) fail(id, 'guide needs at least 2 wrong fixes, each with why');
+}
+for (const id of Object.keys(guide.flaws || {})) if (!categoryIds.has(id)) fail(id, 'in data/guide.json but not a flaw type');
 
 console.log(`Snippets: ${seen.size}  (${LEVELS.map((l) => `${l} ${perLevel[l]}`).join(', ')})`);
 console.log(`By level and surface: ${Object.entries(perSurfaceLevel).map(([k, v]) => `${k} ${v}`).join(', ')}`);

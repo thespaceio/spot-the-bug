@@ -9,6 +9,7 @@ import { checkTeam, onlineEnabled } from './online.js';
 import { renderHome } from './views/home.js';
 import { renderRound, confirmLeave } from './views/round.js';
 import { renderExam, confirmLeaveExam } from './views/exam.js';
+import { renderGuide } from './views/guide.js';
 import { renderResults } from './views/results.js';
 import { renderScoreboard } from './views/scoreboard.js';
 import { renderAccount } from './views/account.js';
@@ -31,6 +32,7 @@ const VIEWS = {
   home: renderHome,
   round: renderRound,
   exam: renderExam,
+  guide: renderGuide,
   results: renderResults,
   scoreboard: renderScoreboard,
   account: renderAccount,
@@ -43,7 +45,7 @@ const VIEWS = {
   moderate: renderModerate,
 };
 // Screens that have their own link (?scoreboard and so on).
-const LINKED = ['scoreboard', 'progress', 'class', 'account', 'about', 'privacy', 'live', 'cert', 'moderate'];
+const LINKED = ['scoreboard', 'progress', 'class', 'account', 'about', 'privacy', 'live', 'cert', 'moderate', 'guide'];
 
 const NAV = [
   { id: 'home', label: 'Play', short: 'Play', icon: 'play' },
@@ -53,7 +55,7 @@ const NAV = [
   { id: 'about', label: 'About', short: 'About', icon: 'info' },
   { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
 ];
-const NAV_FOR = { round: 'home', exam: 'progress', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
+const NAV_FOR = { guide: 'about', round: 'home', exam: 'progress', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
 
 let cleanup = null;
 const START = new URLSearchParams(location.search);   // read before the address is tidied

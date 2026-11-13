@@ -29,6 +29,7 @@ export function renderResults(root) {
       answers: r.results.map((x, i) => ({
         id: x.snippet.id, category: x.snippet.category, line: x.pickedLine ?? null, type: x.pickedType ?? null,
         left: r.answers[i]?.left ?? 0, lineOk: x.score.lineCorrect, typeOk: x.score.typeCorrect, points: x.score.points,
+        fixOk: typeof x.fixOk === 'boolean' ? x.fixOk : null,
       })),
     });
     if (!r.practice) ctx.local.add({
@@ -175,7 +176,9 @@ function focusPanel(r) {
     h('ul', { class: 'focus-list' }, sum.focus.map((f, i) => h('li', { class: 'rise-in', style: { '--i': i } },
       h('div', {}, h('p', { class: 'focus-name', text: f.category?.name || 'Unknown' }), h('p', { class: 'focus-meta', text: f.category?.owasp || '' })),
       h('span', { class: 'focus-count', text: f.misses === 1 ? 'missed once' : `missed ${f.misses}×` }),
-      others(f.id) ? practiseBtn([f.id], 'Practise', 'btn btn-quiet btn-sm focus-practise') : null))),
+      h('span', { class: 'focus-actions-row' },
+        h('button', { type: 'button', class: 'link-btn focus-guide', onclick: () => ctx.go('guide', { flaw: f.id }), text: 'How to spot it' }),
+        others(f.id) ? practiseBtn([f.id], 'Practise', 'btn btn-quiet btn-sm focus-practise') : null)))),
     ids.length > 1 ? h('div', { class: 'btn-row focus-actions' },
       practiseBtn(ids, `Practise these ${ids.length} flaws`, 'btn btn-ghost')) : null,
     h('p', { class: 'save-hint', text: 'Practice uses other snippets with the same flaw, from every level. It counts towards Progress, not the scoreboard.' }));

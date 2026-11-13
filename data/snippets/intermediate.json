@@ -81,7 +81,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "14": "The level is checked against an allowlist, so it's safe. The sort column isn't checked at all.",
+        "21": "The level is passed as a parameter here, which is safe. The sort column was pasted into the SQL text before this."
+      }
     },
     {
       "id": "INT-002",
@@ -169,7 +173,10 @@
         "merchants"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "15": "escapeHtml is right for text inside an element like this heading."
+      }
     },
     {
       "id": "INT-003",
@@ -260,7 +267,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "5": "This checks the user is a lecturer, but not which courses they teach.",
+        "22": "The values are passed as parameters, so there's no injection. The query simply doesn't limit which course."
+      }
     },
     {
       "id": "INT-004",
@@ -342,7 +353,11 @@
         "auth"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "14": "The PIN check locks the terminal after 5 wrong tries. That's good.",
+        "22": "Signing with HS256 is fine when the secret is strong and kept secret. The problem is the fallback value."
+      }
     },
     {
       "id": "INT-005",
@@ -415,7 +430,11 @@
         "auth"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "4": "A random 16-byte salt per PIN is good, but a salt doesn't slow down guessing 10,000 PINs.",
+        "13": "timingSafeEqual is the right comparison. The weakness is how the hash is made."
+      }
     },
     {
       "id": "INT-006",
@@ -484,7 +503,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Sign-in is required, so only students get here. That isn't the gap.",
+        "15": "Checking the file exists is fine. The path was already able to point outside the folder."
+      }
     },
     {
       "id": "INT-007",
@@ -584,7 +607,10 @@
         "merchants"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "6": "parse_url finds the host correctly. It's the check on that host that's too narrow."
+      }
     },
     {
       "id": "INT-008",
@@ -670,7 +696,11 @@
         "pos"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "3": "The device certificate proves which terminal is calling, but a stolen or tampered terminal can still send anything.",
+        "6": "Checking the content type is fine, but it doesn't make the data trustworthy."
+      }
     },
     {
       "id": "INT-009",
@@ -757,7 +787,11 @@
         "airtime"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "12": "The network and phone number are checked properly.",
+        "19": "This balance check works once the amount is a real positive number."
+      }
     },
     {
       "id": "INT-010",
@@ -849,7 +883,11 @@
         "kyc"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "11": "This handler gives a safe, plain message for unexpected errors. The database error below goes around it.",
+        "17": "The BVN and phone are validated properly."
+      }
     },
     {
       "id": "INT-011",
@@ -918,6 +956,9 @@
           11,
           12
         ]
+      },
+      "lineNotes": {
+        "9": "The session token goes into secure storage. That's right."
       }
     },
     {
@@ -978,6 +1019,10 @@
         "changedLines": [
           9
         ]
+      },
+      "lineNotes": {
+        "3": "Cleartext traffic is off. Good.",
+        "12": "User certificates in debug-overrides only apply to debug builds, which is the right place for a test proxy."
       }
     },
     {
@@ -1046,6 +1091,10 @@
         "changedLines": [
           16
         ]
+      },
+      "lineNotes": {
+        "9": "Logging the method and path is fine: no personal data.",
+        "15": "The path and status code are fine to log."
       }
     },
     {
@@ -1120,6 +1169,10 @@
           17,
           18
         ]
+      },
+      "lineNotes": {
+        "3": "The shop needs JavaScript. On its own, that isn't the flaw.",
+        "13": "Starting on the shop's own https page is fine. The problem is that it can then go anywhere."
       }
     },
     {
@@ -1197,6 +1250,10 @@
           8,
           15
         ]
+      },
+      "lineNotes": {
+        "16": "The action name is just a label. Anyone can send it, which is why who can deliver the broadcast matters.",
+        "21": "Unregistering in onStop is correct housekeeping."
       }
     },
     {
@@ -1267,6 +1324,10 @@
         "changedLines": [
           20
         ]
+      },
+      "lineNotes": {
+        "10": "Row level security is on, which is right, but each policy still decides what it allows.",
+        "15": "Inserts are limited to the user's own documents. That's right."
       }
     },
     {
@@ -1321,6 +1382,10 @@
           1,
           6
         ]
+      },
+      "lineNotes": {
+        "7": "npm ci needs the token while it installs. The problem is that ENV keeps it in the image afterwards.",
+        "10": "Running as the node user is good."
       }
     },
     {
@@ -1396,6 +1461,10 @@
           20,
           21
         ]
+      },
+      "lineNotes": {
+        "7": "The job's token can only read the repository. Good.",
+        "20": "Passing the token as a secret is right. The question is who you're passing it to."
       }
     },
     {
@@ -1490,6 +1559,9 @@
           29,
           30
         ]
+      },
+      "lineNotes": {
+        "4": "A dedicated service account is good practice. What it's bound to is the problem."
       }
     },
     {
@@ -1568,6 +1640,10 @@
           12,
           13
         ]
+      },
+      "lineNotes": {
+        "12": "try_files sends unknown paths to index.php. That's normal.",
+        "18": "$realpath_root with PHP-FPM is the standard setup."
       }
     }
   ]

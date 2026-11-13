@@ -7,7 +7,7 @@ import { ctx, isOpen } from '../context.js';
 import { onlineEnabled, fetchBoard, liveUpdates } from '../online.js';
 import { heroSlides } from './slides.js';
 import { liveDot, boardTable, segmented } from './board.js';
-import { startGame, startPractice, practiceClockOff, setPracticeClock } from './round.js';
+import { startGame, startPractice, startTutorial, practiceClockOff, setPracticeClock } from './round.js';
 
 export function renderHome(root) {
   const cleanups = [];
@@ -76,7 +76,10 @@ export function renderHome(root) {
         h('ol', { class: 'steps' },
           h('li', {}, h('strong', { text: 'Spot. ' }), 'Click the line you believe is vulnerable.'),
           h('li', {}, h('strong', { text: 'Name. ' }), 'Pick the type of flaw from the list.'),
-          h('li', {}, h('strong', { text: 'Learn. ' }), 'Read what goes wrong and compare the vulnerable code with the fixed version.'))),
+          h('li', {}, h('strong', { text: 'Learn. ' }), 'Read what goes wrong, pick the fix that works, and compare the vulnerable code with the fixed version.')),
+        h('div', { class: 'btn-row' },
+          h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => startTutorial() }, icon('play', 'icon icon-sm'), 'Try a guided round'),
+          h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('guide'), text: 'Read the flaw guide' }))),
       h('section', { class: 'panel card' },
         h('h2', { text: 'Scoring' }),
         h('dl', { class: 'score-table' },

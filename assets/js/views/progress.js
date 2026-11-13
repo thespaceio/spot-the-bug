@@ -56,10 +56,10 @@ function page(cleanups) {
   const kinds = surfaceStats(games, new Map(ctx.content.snippets.map((sn) => [sn.id, sn.surface || 'backend'])));
 
   const statEls = [
-    ['Games', t.games], ['Rounds', t.rounds], ['Clean finds', t.clean], ['Accuracy', t.accuracy, '%'], ['Best streak', t.bestStreak],
+    ['Games', t.games], ['Clean finds', t.clean], ['Accuracy', t.accuracy, '%'], ['Fixes picked right', t.fixRate, '%'], ['Best streak', t.bestStreak],
   ].map(([label, value, unit = ''], i) => {
-    const v = h('span', { class: 'stat-value', text: '0' });
-    requestAnimationFrame(() => {
+    const v = h('span', { class: 'stat-value', text: value === null ? '–' : '0' });
+    if (value !== null) requestAnimationFrame(() => {
       countUp(v, value, 700);
       if (unit) setTimeout(() => { v.textContent = `${value}${unit}`; }, 720);
     });
@@ -107,7 +107,9 @@ function page(cleanups) {
         h('p', { class: 'focus-name', text: `${w.category.name} · ${w.rate}%` }),
         h('p', { class: 'muted', text: w.category.summary }),
         h('p', { class: 'focus-meta', text: [w.category.owasp, w.category.cwe].filter(Boolean).join(' · ') }),
-        practiseButton([w.category.id], 'Practise this flaw', 'btn btn-quiet btn-small')))),
+        h('div', { class: 'btn-row weak-actions' },
+          practiseButton([w.category.id], 'Practise this flaw', 'btn btn-quiet btn-small'),
+          h('button', { type: 'button', class: 'link-btn', onclick: () => ctx.go('guide', { flaw: w.category.id }), text: 'How to spot it' }))))),
       weak.length > 1 ? h('div', { class: 'btn-row' },
         practiseButton(weak.slice(0, 3).map((w) => w.category.id), `Practise all ${Math.min(3, weak.length)}`, 'btn btn-ghost')) : null,
       h('div', { class: 'weak-foot' },

@@ -1,0 +1,625 @@
+{
+  "version": 1,
+  "flaws": {
+    "sqli": {
+      "signs": [
+        "User input joined or pasted into SQL text (+, f-strings, template strings, string concatenation).",
+        "Column or table names taken from the request (ORDER BY, sort fields), which parameters can't cover.",
+        "Values from your own database that someone else once typed in (second-order injection)."
+      ],
+      "fixes": [
+        "Use parameters or placeholders for every value.",
+        "For names (columns, directions), choose from a fixed allowlist.",
+        "Turn values into the type you expect (an int, a date) before they reach the query."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "db.query(\"SELECT * FROM users WHERE email = '\" + email + \"'\")",
+        "good": "db.query('SELECT * FROM users WHERE email = $1', [email])"
+      },
+      "decoys": [
+        {
+          "fix": "Remove single quotes from the input before building the query.",
+          "why": "Numbers, column names and other contexts need no quotes, and escaping by hand misses cases. Parameters are the only reliable fix."
+        },
+        {
+          "fix": "Check the input isn't empty and is shorter than 100 characters.",
+          "why": "' OR 1=1 -- is short and not empty. Length checks don't stop SQL being changed."
+        },
+        {
+          "fix": "Run the query with a read-only database user.",
+          "why": "That limits damage but the attacker can still read every row. The query itself must stop treating input as SQL."
+        }
+      ]
+    },
+    "xss": {
+      "signs": [
+        "User text written into HTML without escaping (echo, innerHTML, template strings).",
+        "Text placed inside attributes, <script> blocks or URLs, where HTML escaping isn't enough.",
+        "Filters that remove <script> or < only, instead of encoding for the place the text goes."
+      ],
+      "fixes": [
+        "Escape for the context: HTML text, attribute, JavaScript or URL each need their own encoding.",
+        "Use a template engine that escapes by default, and allow only http(s) links.",
+        "Add a Content Security Policy as a second line of defence."
+      ],
+      "example": {
+        "language": "php",
+        "bad": "<p><?= $comment ?></p>",
+        "good": "<p><?= htmlspecialchars($comment, ENT_QUOTES, 'UTF-8') ?></p>"
+      },
+      "decoys": [
+        {
+          "fix": "Remove <script> tags from the text before showing it.",
+          "why": "Event handlers like onerror, javascript: links and attribute breakouts need no script tag."
+        },
+        {
+          "fix": "Only show the text to signed-in users.",
+          "why": "Signed-in users are exactly the victims: the script runs in their session."
+        },
+        {
+          "fix": "Check the text on the browser side before it's submitted.",
+          "why": "Attackers send requests directly. Anything the browser checks can be skipped."
+        }
+      ]
+    },
+    "access-control": {
+      "signs": [
+        "An ID from the address or body used to load a record, with no check of who owns it.",
+        "Checks that prove who you are (signed in, has a role) but not what you may touch.",
+        "Roles or permissions read from the request instead of from the server's own records."
+      ],
+      "fixes": [
+        "Filter every query by the signed-in user (or check the owner) on the server.",
+        "Check permission for the specific object, not just the route.",
+        "Read roles from the database or session, never from what the client sends."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "Invoice.query.get(invoice_id)",
+        "good": "Invoice.query.filter_by(id=invoice_id, owner_id=current_user.id).first_or_404()"
+      },
+      "decoys": [
+        {
+          "fix": "Use long random IDs so nobody can guess another user's record.",
+          "why": "IDs leak in links, logs and screenshots. Hard-to-guess IDs slow attackers down but don't check permission."
+        },
+        {
+          "fix": "Hide the link to other users' records in the app.",
+          "why": "The API still answers. Attackers call it directly with any ID."
+        },
+        {
+          "fix": "Require users to be signed in for this endpoint.",
+          "why": "Being signed in proves who you are, not that the record is yours."
+        }
+      ]
+    },
+    "hardcoded-secret": {
+      "signs": [
+        "Keys, passwords or tokens written in code, config files or app bundles.",
+        "\"Fallback\" values like os.environ.get('KEY', 'dev-secret') that end up in production.",
+        "Secret keys used from a mobile app or browser, where anyone can read them."
+      ],
+      "fixes": [
+        "Keep secrets in a secret manager or the server's environment, and fail to start without them.",
+        "Never ship server secrets in apps: the app calls your server, which holds the key.",
+        "Rotate any secret that was ever committed, then remove it from history."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "const API_KEY = 'live_8f2c...';",
+        "good": "const API_KEY = process.env.API_KEY; // set on the server, never committed"
+      },
+      "decoys": [
+        {
+          "fix": "Split the key into two strings and join them at run time.",
+          "why": "Anyone reading the code (or the app) can join them too."
+        },
+        {
+          "fix": "Make the repository private.",
+          "why": "Private repos get cloned, leaked and shared with contractors, and app bundles are public anyway."
+        },
+        {
+          "fix": "Encode the key in base64 so it isn't readable.",
+          "why": "Base64 is an encoding, not encryption. Decoding it takes a second."
+        }
+      ]
+    },
+    "weak-hashing": {
+      "signs": [
+        "Passwords or PINs hashed with fast hashes: MD5, SHA-1, SHA-256 on their own.",
+        "No salt, or too few iterations for a slow hash.",
+        "Passwords encrypted (reversible) instead of hashed."
+      ],
+      "fixes": [
+        "Use Argon2id, bcrypt or scrypt (or PBKDF2 with a high iteration count).",
+        "Let the library handle salts, and compare with its verify function.",
+        "For short PINs, also limit attempts on the server, because any hash of 10,000 PINs can be brute-forced."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "hashlib.sha256(password.encode()).hexdigest()",
+        "good": "argon2.PasswordHasher().hash(password)"
+      },
+      "decoys": [
+        {
+          "fix": "Hash the password twice with SHA-256.",
+          "why": "Two fast hashes are still fast. Attackers try billions of guesses a second."
+        },
+        {
+          "fix": "Store the hash in a separate database table.",
+          "why": "Whoever steals one table usually steals them all. The hash itself has to be slow."
+        },
+        {
+          "fix": "Encrypt passwords with AES-256 instead.",
+          "why": "Encryption can be undone with the key. Passwords must be stored so nobody can read them back."
+        }
+      ]
+    },
+    "path-traversal": {
+      "signs": [
+        "File names from users joined onto a folder path (including names inside zip files).",
+        "Filters that remove ../ once, or check text with startsWith without a trailing separator.",
+        "Downloads or uploads that take a path or file name from the request."
+      ],
+      "fixes": [
+        "Resolve the full path and check it stays inside the folder (compare with folder + separator).",
+        "Better still, look files up by ID and never use the user's name as a path.",
+        "Use helpers like send_from_directory or basename where they fit."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "open(os.path.join(UPLOADS, name))",
+        "good": "open(os.path.join(UPLOADS, os.path.basename(name)))"
+      },
+      "decoys": [
+        {
+          "fix": "Replace \"../\" with nothing in the file name.",
+          "why": "....// becomes ../ after one pass, and encoded or absolute paths get through."
+        },
+        {
+          "fix": "Only allow file names that end in .pdf.",
+          "why": "../other-folder/secret.pdf still ends in .pdf."
+        },
+        {
+          "fix": "Run the app as a user that can't read /etc/passwd.",
+          "why": "It can still read everything the app can: other users' files, keys and config."
+        }
+      ]
+    },
+    "ssrf": {
+      "signs": [
+        "The server fetches a URL that a user supplied (logos, webhooks, imports, previews).",
+        "Blocklists of 'localhost' or text checks (startsWith, endsWith) on the URL.",
+        "Redirects followed after the check, or DNS answers that change."
+      ],
+      "fixes": [
+        "Allow only the hosts you need, or resolve and refuse private, loopback and link-local addresses at connect time.",
+        "Don't follow redirects (or check each one), and allow only https.",
+        "Run fetchers where they can't reach internal services or cloud metadata."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "await fetch(req.body.url)",
+        "good": "await fetch(url, { redirect: 'manual', dispatcher: publicOnlyAgent })"
+      },
+      "decoys": [
+        {
+          "fix": "Block URLs that contain \"localhost\" or \"127.0.0.1\".",
+          "why": "169.254.169.254, 10.x addresses, other spellings of 127.0.0.1 and DNS names pointing inside all get through."
+        },
+        {
+          "fix": "Only accept URLs that start with https://.",
+          "why": "Internal services and some metadata endpoints are reachable over https too, and redirects can lead anywhere."
+        },
+        {
+          "fix": "Set a 5 second timeout on the request.",
+          "why": "Timeouts limit slow requests. They don't stop fast ones to internal addresses."
+        }
+      ]
+    },
+    "deserialization": {
+      "signs": [
+        "pickle, PHP unserialize, Java ObjectInputStream, YAML full loaders or similar on data from outside.",
+        "Cookies, uploads or queues that carry serialised objects.",
+        "Options that look like hardening but allow all classes."
+      ],
+      "fixes": [
+        "Use a data-only format: JSON, or YAML with safe_load.",
+        "If objects must be restored, sign the data and allow only specific classes.",
+        "Validate the structure after parsing."
+      ],
+      "example": {
+        "language": "python",
+        "bad": "prefs = pickle.loads(cookie)",
+        "good": "prefs = json.loads(cookie)"
+      },
+      "decoys": [
+        {
+          "fix": "Base64 encode the data so it can't be tampered with.",
+          "why": "Base64 is just an encoding. Anyone can decode, change and re-encode it."
+        },
+        {
+          "fix": "Check the result is a dictionary after loading it.",
+          "why": "The attack runs while loading, before your check ever sees the result."
+        },
+        {
+          "fix": "Only accept data under 256 KB.",
+          "why": "Exploit payloads are tiny. Size limits don't help."
+        }
+      ]
+    },
+    "input-validation": {
+      "signs": [
+        "Amounts, quantities or counts used without checking their range (negative, zero, fractions, huge).",
+        "Checks for only one side of a range, or comparisons that miss earlier activity (total refunded so far).",
+        "Formats (phone numbers, dates, IDs) accepted without checking."
+      ],
+      "fixes": [
+        "Validate type, range and format on the server, for every business rule.",
+        "Use whole units (kobo) as integers and check both ends of the range.",
+        "Re-check limits against totals inside the same database transaction."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "if (amount > balance) return error();",
+        "good": "if (!Number.isInteger(amount) || amount <= 0 || amount > balance) return error();"
+      },
+      "decoys": [
+        {
+          "fix": "Validate the amount in the app's form before it's sent.",
+          "why": "Attackers send requests directly. Only server-side checks count."
+        },
+        {
+          "fix": "Round the amount to two decimal places.",
+          "why": "-5000.00 is still negative. Rounding doesn't enforce the rule."
+        },
+        {
+          "fix": "Log every transfer so you can find abuse later.",
+          "why": "Logs help after the money is gone. The rule has to be enforced before."
+        }
+      ]
+    },
+    "verbose-errors": {
+      "signs": [
+        "Error messages, stack traces, SQL or file paths sent to the client.",
+        "Debug switches that a request can turn on (a query string, a header).",
+        "Database error text (constraint names, values) passed straight through."
+      ],
+      "fixes": [
+        "Log the details on the server with a reference, and return a plain message and that reference.",
+        "Turn debug output off by configuration, never by request.",
+        "Map known errors (like duplicates) to fixed, friendly messages."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "res.status(500).json({ error: err.message, stack: err.stack })",
+        "good": "res.status(500).json({ error: 'Something went wrong', ref })"
+      },
+      "decoys": [
+        {
+          "fix": "Only show the stack trace to users who are signed in.",
+          "why": "Anyone can sign up. Internal details help attackers whoever sees them."
+        },
+        {
+          "fix": "Shorten the error message to its first 100 characters.",
+          "why": "The first line of a database error is usually the most revealing part."
+        },
+        {
+          "fix": "Return status 200 so errors look like successes.",
+          "why": "It hides problems from monitoring and still leaks whatever text is returned."
+        }
+      ]
+    },
+    "insecure-storage": {
+      "signs": [
+        "PINs, passwords, card numbers or tokens in SharedPreferences, UserDefaults, plain files or SQLite.",
+        "Sensitive files written to shared or public storage (Downloads, Documents).",
+        "Secure storage used for one value while another copy sits in plain storage."
+      ],
+      "fixes": [
+        "Don't store what you don't need (PINs, full card numbers, CVVs).",
+        "Use the Keystore/Keychain (EncryptedSharedPreferences, flutter_secure_storage) for tokens.",
+        "Keep files in the app's private storage and share them with a FileProvider."
+      ],
+      "example": {
+        "language": "kotlin",
+        "bad": "prefs.edit().putString(\"pin\", pin).apply()",
+        "good": "// Never store the PIN; ask for it, or use BiometricPrompt"
+      },
+      "decoys": [
+        {
+          "fix": "Use MODE_PRIVATE so other apps can't read the file.",
+          "why": "Root, backups and malware with root still read plain files. Sensitive values need encryption, or no storage at all."
+        },
+        {
+          "fix": "Base64 encode the value before saving it.",
+          "why": "Base64 isn't encryption. It's undone instantly."
+        },
+        {
+          "fix": "Clear the stored value when the user signs out.",
+          "why": "It's exposed the whole time they're signed in, and on any backup taken meanwhile."
+        }
+      ]
+    },
+    "insecure-transport": {
+      "signs": [
+        "Certificate checks switched off (badCertificateCallback, trust-all managers, hostname verifiers that return true).",
+        "Cleartext (http://, ws://) allowed by config or code.",
+        "Trusting user-installed certificates, or 'checking' a certificate by text that anyone can copy."
+      ],
+      "fixes": [
+        "Keep the platform's default TLS checks; use HTTPS and WSS everywhere.",
+        "If you need more, pin the public key properly with the platform's pinning support.",
+        "Keep test proxies in debug-only configuration."
+      ],
+      "example": {
+        "language": "dart",
+        "bad": "..badCertificateCallback = (cert, host, port) => true",
+        "good": "// leave the default certificate check in place"
+      },
+      "decoys": [
+        {
+          "fix": "Only switch off the certificate check for our own API host.",
+          "why": "An attacker in the middle pretends to be exactly that host."
+        },
+        {
+          "fix": "Encrypt the request body with a key built into the app.",
+          "why": "The key is in the app, so anyone can decrypt it, and headers and tokens still travel exposed."
+        },
+        {
+          "fix": "Check that the certificate's issuer name contains our company name.",
+          "why": "Anyone can create a certificate with any issuer name."
+        }
+      ]
+    },
+    "sensitive-logging": {
+      "signs": [
+        "Logging request bodies, headers, PINs, BVNs, card data or tokens.",
+        "Crash reporting or analytics given full requests or user data.",
+        "'Debug only' logging that is also on in pilot, beta or support builds."
+      ],
+      "fixes": [
+        "Log only what you need to investigate, and mask or drop sensitive fields.",
+        "Turn full logging on only in debug builds, and redact Authorization headers.",
+        "Treat log tools as places many people can read."
+      ],
+      "example": {
+        "language": "javascript",
+        "bad": "logger.info('login', { body: req.body })",
+        "good": "logger.info('login', { phoneEnding: phone.slice(-4) })"
+      },
+      "decoys": [
+        {
+          "fix": "Keep logs for 7 days instead of 90.",
+          "why": "A week of PINs is still a breach, and log tools copy data elsewhere."
+        },
+        {
+          "fix": "Log at debug level instead of info.",
+          "why": "Debug logs are often on in production, and the data is still written."
+        },
+        {
+          "fix": "Only let the support team read the logs.",
+          "why": "Support doesn't need PINs, and the more people can read logs, the more ways they leak."
+        }
+      ]
+    },
+    "unsafe-webview": {
+      "signs": [
+        "JavaScript bridges (addJavascriptInterface, JavaScript channels) in WebViews that can load other sites.",
+        "URLs from links or intents loaded without strict checks.",
+        "Host checks done with contains, startsWith or endsWith on the URL text."
+      ],
+      "fixes": [
+        "Parse the URL and compare the scheme and exact host with an allowlist.",
+        "Open anything else in the browser, not inside the app.",
+        "Expose the smallest bridge possible, and check the caller's origin in every method."
+      ],
+      "example": {
+        "language": "kotlin",
+        "bad": "if (url.contains(\"example.com\")) web.loadUrl(url)",
+        "good": "if (uri.scheme == \"https\" && uri.host == \"pay.example.com\") web.loadUrl(url)"
+      },
+      "decoys": [
+        {
+          "fix": "Turn off JavaScript only on pages that don't need it.",
+          "why": "The pages that use the bridge need JavaScript, and an attacker's page will run its own."
+        },
+        {
+          "fix": "Check that the URL contains our domain name.",
+          "why": "evil.example/?x=ourdomain and ourdomain.evil.example both contain it."
+        },
+        {
+          "fix": "Rename the bridge to something hard to guess.",
+          "why": "The name is in the app and in the page's JavaScript. Anyone can read it."
+        }
+      ]
+    },
+    "exported-component": {
+      "signs": [
+        "Activities, services, receivers or providers with exported=\"true\" (or an intent filter) and no permission.",
+        "Permissions with protectionLevel=\"normal\", which any app can request.",
+        "Screens that return tokens or perform actions without checking who called them."
+      ],
+      "fixes": [
+        "Don't export what other apps don't need (exported=\"false\").",
+        "Protect what must be exported with a signature permission or a caller check.",
+        "Register runtime receivers as not exported."
+      ],
+      "example": {
+        "language": "xml",
+        "bad": "<service android:name=\".Sync\" android:exported=\"true\" />",
+        "good": "<service android:name=\".Sync\" android:exported=\"false\" />"
+      },
+      "decoys": [
+        {
+          "fix": "Give the action an unusual, hard-to-guess name.",
+          "why": "Action names are in the manifest. Anyone can unzip the APK and read them."
+        },
+        {
+          "fix": "Check the intent has all the extras the screen expects.",
+          "why": "An attacker sends exactly the extras you expect."
+        },
+        {
+          "fix": "Hide the component from the app's menus.",
+          "why": "Other apps start it directly. Menus don't matter."
+        }
+      ]
+    },
+    "open-rules": {
+      "signs": [
+        "Rules or policies like allow read, write: if true or using (true).",
+        "'Signed in' checks only (request.auth != null) on other people's data.",
+        "Public storage buckets for private files, or users able to edit their own role."
+      ],
+      "fixes": [
+        "Check ownership in every rule: the record's owner must be the signed-in user.",
+        "Keep private files in private buckets and serve them through checks.",
+        "Never let users write fields that grant permissions."
+      ],
+      "example": {
+        "language": "rules",
+        "bad": "allow read: if request.auth != null;",
+        "good": "allow read: if request.auth != null && request.auth.uid == userId;"
+      },
+      "decoys": [
+        {
+          "fix": "Only show other users' data in the admin screens of the app.",
+          "why": "The database answers anyone who asks directly, whatever the app's screens do."
+        },
+        {
+          "fix": "Require users to sign in before reading.",
+          "why": "Anyone can sign up in seconds. Signed in is not the same as allowed."
+        },
+        {
+          "fix": "Use hard-to-guess document IDs.",
+          "why": "Rules that allow listing reveal the IDs, and IDs leak. Rules must check ownership."
+        }
+      ]
+    },
+    "secret-leak": {
+      "signs": [
+        "Secrets copied into images (COPY .env, ENV TOKEN=...) or left in a layer and deleted later.",
+        "Secrets printed in CI logs in a form masking doesn't catch (encoded, partial).",
+        "Build artifacts or uploads that include keystores, .env or config folders."
+      ],
+      "fixes": [
+        "Pass secrets at run time, or mount them for one build step (Docker build secrets).",
+        "Never print secrets, in any form; check they're set without showing them.",
+        "Upload only the files a step needs."
+      ],
+      "example": {
+        "language": "dockerfile",
+        "bad": "COPY .env ./.env",
+        "good": "# pass settings at run time: docker run --env-file .env ..."
+      },
+      "decoys": [
+        {
+          "fix": "Delete the file in a later RUN step.",
+          "why": "Every step is a layer. The file is still in the earlier layer and can be extracted."
+        },
+        {
+          "fix": "Rely on GitHub masking secrets in logs.",
+          "why": "Masking only matches the exact text. Encoded or partial secrets print in full."
+        },
+        {
+          "fix": "Make the container registry private.",
+          "why": "Many people and systems can pull from it, and images get copied. The secret shouldn't be in the image at all."
+        }
+      ]
+    },
+    "supply-chain": {
+      "signs": [
+        "Scripts piped from the internet into a shell, especially over http.",
+        "Third-party actions or packages pinned to a branch or mutable tag, given secrets.",
+        "Untrusted input (pull request code, comments, package indexes) running in a privileged pipeline."
+      ],
+      "fixes": [
+        "Pin third-party code to a full commit SHA or a verified version with a checksum.",
+        "Never run untrusted code or text where secrets are available.",
+        "Install from one package index you control."
+      ],
+      "example": {
+        "language": "yaml",
+        "bad": "- uses: someone/deploy-action@main",
+        "good": "- uses: someone/deploy-action@3f1c2b9e8d7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e  # v2.4.1"
+      },
+      "decoys": [
+        {
+          "fix": "Download the install script over https instead of http.",
+          "why": "That stops tampering in transit but you still run whatever the publisher (or whoever hijacks them) ships."
+        },
+        {
+          "fix": "Give the workflow only read access to the repository.",
+          "why": "The untrusted code still sees the secrets passed to that step."
+        },
+        {
+          "fix": "Pin the action to a version tag like @v2.",
+          "why": "Tags can be moved to new code. Only a full commit SHA is fixed."
+        }
+      ]
+    },
+    "excess-privilege": {
+      "signs": [
+        "privileged: true, root users, host sockets or host paths mounted into containers.",
+        "Cluster-admin bindings, write-all tokens or Resource: \"*\" in policies.",
+        "Permissions wider than the job, 'just to make it work'."
+      ],
+      "fixes": [
+        "Grant only the exact actions and resources the job needs.",
+        "Run as non-root, drop capabilities, and avoid host mounts.",
+        "Review permissions whenever a job's purpose changes."
+      ],
+      "example": {
+        "language": "yaml",
+        "bad": "permissions: write-all",
+        "good": "permissions:\n  contents: read"
+      },
+      "decoys": [
+        {
+          "fix": "Keep the broad permissions but turn on audit logging.",
+          "why": "Logs tell you after the damage. The permission is the damage waiting to happen."
+        },
+        {
+          "fix": "Only use the broad permission in production.",
+          "why": "Production is where it matters most."
+        },
+        {
+          "fix": "Put the service in its own namespace.",
+          "why": "A cluster-wide role or host access reaches across namespaces anyway."
+        }
+      ]
+    },
+    "exposed-files": {
+      "signs": [
+        "Backups, dumps, .env, .git or uploads under a web root or public bucket.",
+        "autoindex on, public bucket policies, or a web root set to the project folder.",
+        "Static file locations that skip the authentication other paths get."
+      ],
+      "fixes": [
+        "Keep only public files in the web root; serve everything else through the app with checks.",
+        "Block public access on storage buckets and give jobs roles instead.",
+        "Deny hidden files and backups explicitly as a second line of defence."
+      ],
+      "example": {
+        "language": "nginx",
+        "bad": "root /var/www/app;   # contains .env and .git",
+        "good": "root /var/www/app/public;"
+      },
+      "decoys": [
+        {
+          "fix": "Turn off directory listing.",
+          "why": "Files with guessable names (dates, .env, .git/config) can still be downloaded."
+        },
+        {
+          "fix": "Rename the backup folder to something hard to guess.",
+          "why": "Folder names leak through scanners, logs and links. The files must not be public."
+        },
+        {
+          "fix": "Delete backups after 30 days.",
+          "why": "Every one of those 30 days' files is public until then."
+        }
+      ]
+    }
+  }
+}

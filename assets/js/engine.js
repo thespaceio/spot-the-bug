@@ -23,15 +23,16 @@ export function shuffle(list, rng = Math.random) {
 }
 
 export async function loadContent(fetchJson, base = 'data/') {
-  const [manifest, cats] = await Promise.all([
+  const [manifest, cats, guide] = await Promise.all([
     fetchJson(`${base}manifest.json`),
     fetchJson(`${base}categories.json`),
+    fetchJson(`${base}guide.json`).catch(() => ({ flaws: {} })),
   ]);
   const packs = await Promise.all(manifest.packs.map((p) => fetchJson(`${base}${p.file}`)));
   const snippets = packs.flatMap((p) => (p.snippets || []).map((s) => ({ ...s, pack: p.pack })));
   const categories = new Map(cats.categories.map((c) => [c.id, c]));
   const surfaces = new Map((cats.surfaces || []).map((x) => [x.id, x]));
-  return { categories, snippets, surfaces };
+  return { categories, snippets, surfaces, guide: guide.flaws || {} };
 }
 
 export function countByLevel(snippets) {

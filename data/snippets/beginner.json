@@ -68,7 +68,11 @@
         "fintech"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "9": "String() only makes the value text; it doesn't make it safe. The danger is where that text is pasted into the SQL.",
+        "13": "The user ID is passed as a parameter here, which is safe. The search text was already glued into the SQL above."
+      }
     },
     {
       "id": "BEG-002",
@@ -146,7 +150,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "9": "The session is passed to the database as a parameter, so the query is safe. The problem is printing it on the page.",
+        "16": "The course code is escaped with htmlspecialchars, so it's safe to print."
+      }
     },
     {
       "id": "BEG-003",
@@ -218,7 +226,10 @@
         "fintech"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "9": "Sign-in is required, but signing in only proves who you are. It doesn't check that the agent ID in the address is yours."
+      }
     },
     {
       "id": "BEG-004",
@@ -287,7 +298,11 @@
         "payments"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Sending the secret in the Authorization header is how the gateway expects it. The problem is that the secret is written in the code.",
+        "14": "This check is good: the status, amount and currency all have to match."
+      }
     },
     {
       "id": "BEG-005",
@@ -344,7 +359,10 @@
         "auth"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "12": "compare_digest is the right way to compare hashes. The weakness is the hash itself."
+      }
     },
     {
       "id": "BEG-006",
@@ -415,7 +433,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "5": "The folder comes from the student's own ID in the session, which is fine. The file name from the address is the problem.",
+        "16": "readfile just sends the file the path points to. The path was built unsafely above."
+      }
     },
     {
       "id": "BEG-007",
@@ -497,7 +519,11 @@
         "merchants"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Reading the link from the request is normal. The danger is fetching it without checking where it points.",
+        "14": "Saving the logo for the signed-in merchant is fine."
+      }
     },
     {
       "id": "BEG-008",
@@ -570,7 +596,10 @@
         "pos"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Reading a cookie is normal. The problem is what's done with it next."
+      }
     },
     {
       "id": "BEG-009",
@@ -658,7 +687,11 @@
         "transfers"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "7": "Removing everything but digits from the account number is a sensible clean-up.",
+        "11": "Locking the wallet row stops two transfers from racing each other. That part is right."
+      }
     },
     {
       "id": "BEG-010",
@@ -734,7 +767,10 @@
         "pos"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Logging the full error on the server is fine and useful. The problem is sending it back to the caller."
+      }
     },
     {
       "id": "BEG-011",
@@ -799,6 +835,10 @@
         "changedLines": [
           8
         ]
+      },
+      "lineNotes": {
+        "6": "The session token goes into encrypted storage, which is right.",
+        "9": "This file is private to the app but not encrypted. What matters is what gets written into it."
       }
     },
     {
@@ -854,6 +894,10 @@
         "changedLines": [
           9
         ]
+      },
+      "lineNotes": {
+        "5": "The base URL uses https, which is right. The client below then switches off the certificate check.",
+        "9": "A connection timeout is only a time limit."
       }
     },
     {
@@ -910,6 +954,10 @@
         "changedLines": [
           5
         ]
+      },
+      "lineNotes": {
+        "4": "Checking the BVN is 11 digits is good validation.",
+        "8": "This logs only the HTTP status code, which is safe."
       }
     },
     {
@@ -974,6 +1022,9 @@
           12,
           13
         ]
+      },
+      "lineNotes": {
+        "8": "Many help pages need JavaScript. On its own, that isn't the flaw."
       }
     },
     {
@@ -1040,6 +1091,10 @@
         "changedLines": [
           14
         ]
+      },
+      "lineNotes": {
+        "7": "The launcher screen has to be exported so the phone can open the app.",
+        "16": "Settings isn't exported, so other apps can't open it."
       }
     },
     {
@@ -1100,6 +1155,10 @@
         "changedLines": [
           11
         ]
+      },
+      "lineNotes": {
+        "7": "This rule is right: a student can read only their own results.",
+        "8": "Nobody can write results from an app. That's safe."
       }
     },
     {
@@ -1156,6 +1215,10 @@
         "changedLines": [
           8
         ]
+      },
+      "lineNotes": {
+        "5": "npm ci with --omit=dev installs exactly what's locked, without dev tools. Good practice.",
+        "11": "Running as the node user instead of root is good."
       }
     },
     {
@@ -1215,6 +1278,10 @@
           11,
           12
         ]
+      },
+      "lineNotes": {
+        "8": "The job's token can only read the repository. Good.",
+        "13": "npm ci installs exactly what the lockfile says. That's fine."
       }
     },
     {
@@ -1293,6 +1360,10 @@
           12,
           13
         ]
+      },
+      "lineNotes": {
+        "6": "Compose reads .env when it starts the container; it isn't baked into an image. That's fine.",
+        "17": "The database password comes from a secret file, which is the safe way."
       }
     },
     {
@@ -1361,6 +1432,10 @@
         "changedLines": [
           15
         ]
+      },
+      "lineNotes": {
+        "8": "The site serves only the public folder. That's right.",
+        "12": "Passing /api/ to the app on the same machine is normal."
       }
     }
   ]

@@ -6,6 +6,16 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.14',
+    title: 'Learn from every answer',
+    items: [
+      'Picked the wrong line or flaw type? The answer screen now says why it isn\'t the answer.',
+      'Which fix works? After each round, choose the fix that closes the hole before you see it. Not scored, but Progress keeps count.',
+      'A flaw guide for every flaw type: what to look for, how to fix it, and fixes that look right but aren\'t. Find it in the footer.',
+      'New here? Try a guided round from the home page: one snippet, no clock, a coach at every step.',
+    ],
+  },
+  {
     version: '0.13',
     title: 'The certificate exam',
     items: [

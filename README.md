@@ -8,6 +8,13 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.14.0
+
+- **Why not your answer:** when you pick the wrong line, the answer screen says why that line is fine (`lineNotes` on each snippet, for the lines players most often pick); when you pick the wrong flaw type, it puts the two definitions side by side.
+- **Which fix works?** After each answer, an unscored question: the real fix against two classic wrong fixes for that flaw type, each with why it fails. The fix and the fixed code appear once you've answered (or skipped). Keys A, B, C. Progress shows "Fixes picked right".
+- **Flaw guide** (`?guide`, in the footer): every flaw type with what to look for, how to fix it, a tiny vulnerable and fixed example, the wrong fixes, and a Practise button. Linked from every answer, the results' focus areas and Progress. Content: `data/guide.json`.
+- **Guided round:** a one-snippet, untimed round with a coach for each step, offered on a device's first game and from "How a round works" on the home page.
+
 ## What's new in v0.13.0
 
 - **Certificate exam.** The certificate now comes from an exam at each level, not from scoreboard games. Each exam is 10 snippets from a **private pool** that never appears in the game or in this repository (36 snippets, 12 per level, all 20 flaw types; content in the private repository `thespaceio/spot-the-bug-exam`, loaded only into `arcade.stb_exam_snippets`). The server sends each round's code only when that round starts, times it on its own clock, never sends the answer, and at the end returns only the accuracy and whether it passed (80%, 8 of 10 clean). One attempt per level per day; an unfinished attempt can be carried on for 2 hours. Exams are open every day. Start one from the certificate panel on **Progress** (`assets/js/views/exam.js`, migration `20261113120000_arcade_certificate_exam.sql`).
@@ -157,9 +164,10 @@ assets/js/qr.js               QR codes for join links
 assets/js/intro.js            the opening scene
 assets/js/world.js            the 3D world (three.js)
 assets/js/tilt.js             cards that lean toward the mouse
-assets/js/views/*.js          one file per screen: home, round, exam, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
+assets/js/views/*.js          one file per screen: home, round, exam, guide, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
+data/guide.json               the flaw guide: signs, fixes, example and wrong fixes for every flaw type
 data/categories.json          the 20 vulnerability types (OWASP Top 10:2025 and Mobile Top 10:2024) and the 3 kinds of code
 data/snippets/*.json          snippet packs
 scripts/validate-snippets.mjs content checks, including languages allowed for each kind of code
@@ -215,6 +223,7 @@ Add an object to the right pack in `data/snippets/`. No game code changes are ne
 | `acceptLines` | optional, other lines that also count as correct (for a flaw that spans two lines); keep to two or fewer |
 | `distractors` | optional, plausible wrong answers shown first; the rest are filled at random |
 | `fix.changedLines` | 1 based lines in `fix.code` that changed, highlighted green |
+| `lineNotes` | recommended: `{ "9": "why line 9 is fine" }` for the one or two lines players most often pick instead of the flaw; never an answer line |
 
 Content rules:
 

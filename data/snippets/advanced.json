@@ -67,7 +67,10 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "3": "The department list comes from your own table, which feels trusted, but whoever can name a department controls that text."
+      }
     },
     {
       "id": "ADV-002",
@@ -131,7 +134,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "8": "This escape function is correct for HTML. The trouble is that a link can be dangerous without any HTML characters.",
+        "12": "The bio is escaped before the line breaks are added. That's safe."
+      }
     },
     {
       "id": "ADV-003",
@@ -195,7 +202,10 @@
         "fintech"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "11": "This check is right: the account must belong to you. But the statement is then loaded without checking it belongs to that account."
+      }
     },
     {
       "id": "ADV-004",
@@ -282,7 +292,11 @@
         "kyc"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "8": "Checking the BVN is 11 digits keeps the URL safe.",
+        "13": "Sending the credential in a header is normal. The problem is where it comes from."
+      }
     },
     {
       "id": "ADV-005",
@@ -355,7 +369,11 @@
         "auth"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "9": "A random 16-byte salt for each password is right.",
+        "18": "compare_digest is the right comparison."
+      }
     },
     {
       "id": "ADV-006",
@@ -430,7 +448,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "11": "The extension check doesn't look at folders in the name, so ../ still gets through below.",
+        "14": "Writing the file is fine. The target path was built unsafely above."
+      }
     },
     {
       "id": "ADV-007",
@@ -509,7 +531,10 @@
         "kyc"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "7": "The CDN address itself is fine. It's how the link is compared with it."
+      }
     },
     {
       "id": "ADV-008",
@@ -575,7 +600,11 @@
         "education"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "10": "Only admins can upload, but an admin's file (or someone holding an admin's session) still shouldn't be able to run code.",
+        "13": "Checking the file extension doesn't make the contents safe."
+      }
     },
     {
       "id": "ADV-009",
@@ -651,7 +680,11 @@
         "fintech"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "9": "The ownership and status checks are right.",
+        "15": "Recording the refund is fine. The check before it only compares with the original amount, not with what has already been refunded."
+      }
     },
     {
       "id": "ADV-010",
@@ -714,7 +747,11 @@
         "pos"
       ],
       "author": "Th3 SpaceIO",
-      "version": 1
+      "version": 1,
+      "lineNotes": {
+        "12": "Logging the full exception on the server with a reference is right.",
+        "17": "The body is safe: a plain message and a reference."
+      }
     },
     {
       "id": "ADV-011",
@@ -780,6 +817,9 @@
         "changedLines": [
           5
         ]
+      },
+      "lineNotes": {
+        "8": "FileProvider is the right way to share a file. The problem is where the file was written."
       }
     },
     {
@@ -838,6 +878,10 @@
           6,
           7
         ]
+      },
+      "lineNotes": {
+        "4": "Not trusting the phone's root certificates is fine if you then check your own certificate properly.",
+        "7": "Checking the host is reasonable. It's the issuer check below that anyone can satisfy."
       }
     },
     {
@@ -905,6 +949,9 @@
           5,
           6
         ]
+      },
+      "lineNotes": {
+        "11": "Adding the token to each request is right. The logging level decides whether it ends up in the logs."
       }
     },
     {
@@ -976,6 +1023,10 @@
           12,
           13
         ]
+      },
+      "lineNotes": {
+        "7": "The bridge is only dangerous if other sites can load in this WebView, which the check below allows.",
+        "16": "Starting on your own https page is fine."
       }
     },
     {
@@ -1052,6 +1103,9 @@
         "changedLines": [
           5
         ]
+      },
+      "lineNotes": {
+        "13": "Requiring a permission is right. The question is which apps can get that permission."
       }
     },
     {
@@ -1122,6 +1176,10 @@
           12,
           13
         ]
+      },
+      "lineNotes": {
+        "11": "Create is safe: new users can only make themselves customers.",
+        "16": "Payouts check the admin role correctly. The role itself is what can be changed."
       }
     },
     {
@@ -1187,6 +1245,10 @@
           13,
           17
         ]
+      },
+      "lineNotes": {
+        "9": "Restoring the keystore from a secret is the usual way. The problem is that the whole folder, keystore included, is uploaded afterwards.",
+        "12": "Passing the password through env is normal."
       }
     },
     {
@@ -1265,6 +1327,10 @@
           18,
           19
         ]
+      },
+      "lineNotes": {
+        "7": "Read-only contents permission limits the token, but the job still has the deploy token in its environment.",
+        "20": "Passing the token through env is normal. The problem is that untrusted code runs in the same job."
       }
     },
     {
@@ -1346,6 +1412,10 @@
         "changedLines": [
           17
         ]
+      },
+      "lineNotes": {
+        "19": "Dropping all capabilities is good hardening, but the socket mount below undoes it.",
+        "21": "Read-only access to pod logs is exactly what a log shipper needs."
       }
     },
     {
@@ -1422,6 +1492,10 @@
         "changedLines": [
           8
         ]
+      },
+      "lineNotes": {
+        "10": "Caching static files for 30 days is fine.",
+        "14": "auth_request protects the app, but only for the paths this block handles."
       }
     }
   ]

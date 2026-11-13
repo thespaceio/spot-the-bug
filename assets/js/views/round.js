@@ -1,8 +1,8 @@
 // The timed round: pick the vulnerable line, name the flaw, see the fix.
 import { LEVELS, ROUNDS_PER_GAME, REPO_URL, CONTACT_EMAIL, APP } from '../config.js';
-import { buildGame, buildClassGame, buildPractice, buildFlawPractice, surfaceOf, scoreRound, summarise } from '../engine.js';
+import { buildGame, buildClassGame, buildPractice, buildFlawPractice, surfaceOf, scoreRound, summarise, isLineCorrect } from '../engine.js';
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
-import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
+import { h, $, $$, fmt, pop, reduceMotion, icon, fill } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
 import { newGameId, recentSnippetIds, prefs } from '../storage.js';
 import { rankedSession } from '../online.js';
@@ -33,7 +33,67 @@ let root = null;
 /** From a level card: start a fresh game. */
 export function startGame(levelId) {
   if (!isOpen()) { ctx.go('home'); return; }
+  if (offerTutorial(() => ctx.go('round', { level: levelId }))) return;
   ctx.go('round', { level: levelId });
+}
+
+// ---------- the guided first round ----------
+
+const TUTORIAL_SNIPPET = 'BEG-001';
+
+/** A one-snippet, untimed round with a coach. Doesn't count anywhere. */
+export function startTutorial() {
+  ctx.go('round', { level: 'beginner', practice: 'tutorial' });
+}
+
+/** The first time someone starts a game on this device, offer the guided round once. */
+function offerTutorial(play) {
+  if (prefs.get('tutorialOffered', false) || recentSnippetIds(1).length || typeof HTMLDialogElement !== 'function') return false;
+  prefs.set('tutorialOffered', true);
+  const dialog = h('dialog', { class: 'whatsnew card', 'aria-labelledby': 'tutorial-offer-title' },
+    h('p', { class: 'eyebrow', text: 'FIRST GAME' }),
+    h('h2', { id: 'tutorial-offer-title', text: 'New to Spot the Bug?' }),
+    h('p', { class: 'muted', text: 'Take a one-minute guided round first: one snippet, no clock, and a coach showing you what to do at each step.' }),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { dialog.close(); startTutorial(); }, text: 'Guided round' }),
+      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { dialog.close(); play(); }, text: 'Skip, start the game' })));
+  dialog.addEventListener('close', () => dialog.remove());
+  document.body.append(dialog);
+  dialog.showModal();
+  return true;
+}
+
+const COACH = [
+  { target: '.snippet-head', text: 'Welcome. Start every round by reading the scene: what the app does and who uses it. Here, customers search their own transactions.', next: 'Next' },
+  { target: '.code-panel', text: 'Find the line. User input is the usual suspect: follow narration from the request (line 9) to where it is used, and click the line where it does harm.' },
+  { target: '.options', text: 'Name the flaw. The search text ends up inside a SQL statement. Which flaw type is that?' },
+  { target: '#lock', text: 'Lock it in with the button (or press L). In a real game a clock is running; here it isn\'t.' },
+  { target: '#reveal', text: 'Every round ends like this: why it\'s wrong, a question about the fix (not scored), then the fix itself. That\'s the whole game.', done: true },
+];
+
+function coachStep(step, extra) {
+  if (game.practice !== 'tutorial') return;
+  game.coach = step;
+  const box = $('#coach');
+  if (!box) return;
+  const c = COACH[step];
+  $$('.coach-target').forEach((el) => el.classList.remove('coach-target'));
+  $(c.target)?.classList.add('coach-target');
+  fill(box,
+    h('p', { class: 'coach-step', text: `Step ${step + 1} of ${COACH.length}` }),
+    h('p', { class: 'coach-text', text: c.text }),
+    extra ? h('p', { class: 'coach-extra', text: extra }) : null,
+    c.next ? h('button', { class: 'btn btn-primary btn-small', type: 'button', onclick: () => coachStep(step + 1), text: c.next }) : null,
+    c.done ? h('div', { class: 'btn-row' },
+      h('button', { class: 'btn btn-primary btn-small', type: 'button', onclick: () => finishTutorial(() => startGame('beginner')), text: 'Start a Beginner game' }),
+      h('button', { class: 'btn btn-ghost btn-small', type: 'button', onclick: () => finishTutorial(() => ctx.go('home')), text: 'Back to the levels' })) : null);
+}
+
+function finishTutorial(then) {
+  prefs.set('tutorialOffered', true);
+  game.phase = 'idle';
+  game.rounds = [];
+  then();
 }
 
 /** The router asks before leaving mid-game. */
@@ -84,7 +144,11 @@ function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
   game.session = null;
   game.untimed = Boolean(practice) && practiceClockOff();
   const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME, recent: recentSnippetIds() };
-  if (practice === 'flaws') game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: flaws || [], skip });
+  if (practice === 'tutorial') {
+    const sn = ctx.content.snippets.find((x) => x.id === TUTORIAL_SNIPPET);
+    game.rounds = sn ? buildClassGame({ ...args, ids: [sn.id], seed: 7 }) || [] : [];
+    game.untimed = true;
+  } else if (practice === 'flaws') game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: flaws || [], skip });
   else if (practice) game.rounds = buildPractice({ ...args, surface: practice });
   else {
     game.rounds = buildGame(args);
@@ -109,6 +173,7 @@ export const setPracticeClock = (on) => prefs.set('practiceClock', on ? 'on' : '
 const roundLevel = () => game.rounds[game.i]?.level || game.level;
 
 function practiceLabel() {
+  if (game.practice === 'tutorial') return 'Guided round';
   if (game.practice === 'flaws') {
     const names = (game.flaws || []).map((id) => category(id)?.name).filter(Boolean);
     return names.length === 1 ? names[0] : 'Your weak spots';
@@ -174,6 +239,7 @@ function renderCurrent() {
   game.pickedType = null;
   game.phase = 'answer';
   game.paused = false;
+  game.fixQuestion = null;
 
   const code = h('div', { class: 'code', id: 'code', role: 'group', 'aria-label': 'Code. Select the vulnerable line.' });
   s.code.forEach((text, idx) => {
@@ -210,6 +276,7 @@ function renderCurrent() {
         h('span', { class: 'badge badge-quiet', text: s.id })),
       h('h2', { id: 'round-title', text: s.title }),
       h('p', { class: 'context', text: s.context })),
+    ...(game.practice === 'tutorial' ? [h('div', { class: 'coach card', id: 'coach', role: 'status', 'aria-live': 'polite' })] : []),
     h('div', { class: 'round-grid' },
       h('div', { class: `code-panel kind-${surfaceOf(s)}` },
         surfaceOf(s) === 'mobile' ? h('div', { class: 'phone-notch', 'aria-hidden': 'true' }) : null,
@@ -238,6 +305,7 @@ function renderCurrent() {
 
   startTimer();
   game.session?.clock(game.i + 1, 'start');
+  if (game.practice === 'tutorial') coachStep(0);
   const first = $('.line:not([disabled])', code);
   if (first) first.focus({ preventScroll: true });
 }
@@ -252,6 +320,12 @@ function onCodeKeys(e) {
 }
 
 function onKeys(e) {
+  if (game.phase === 'reveal' && game.fixQuestion && /^[abcABC]$/.test(e.key) && !e.altKey && !e.ctrlKey && !e.metaKey
+      && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+    e.preventDefault();
+    game.fixQuestion(e.key);
+    return;
+  }
   if (game.phase !== 'answer' || e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (e.key === 'p' || e.key === 'P') { e.preventDefault(); togglePause(); return; }
@@ -276,6 +350,11 @@ function selectLine(n) {
   $('#line-status').textContent = `Line ${n} selected.`;
   $('#line-status').classList.add('is-set');
   updateLock();
+  if (game.practice === 'tutorial' && game.coach <= 2) {
+    const s = game.rounds[game.i].snippet;
+    if (isLineCorrect(s, n)) coachStep(2, `Good: line ${n} is where the search text is glued into the SQL.`);
+    else coachStep(1, `Not that one. ${s.lineNotes?.[String(n)] || 'Keep following narration to where it is used.'}`);
+  }
 }
 
 function selectType(id) {
@@ -283,6 +362,11 @@ function selectType(id) {
   game.pickedType = id;
   $$('.option').forEach((el) => el.setAttribute('aria-pressed', String(el.dataset.type === id)));
   updateLock();
+  if (game.practice === 'tutorial' && game.coach >= 2 && game.coach <= 3) {
+    const s = game.rounds[game.i].snippet;
+    if (id === s.category) coachStep(game.pickedLine && isLineCorrect(s, game.pickedLine) ? 3 : 1, 'Right flaw type.');
+    else coachStep(2, `${category(id).name} is a different flaw. Think about which language the search text ends up in.`);
+  }
 }
 
 function updateLock() {
@@ -383,6 +467,7 @@ function lockIn(timedOut) {
   markOptions(s);
   renderVerdict(s, score, timedOut);
   renderReveal(s);
+  if (game.practice === 'tutorial') coachStep(4);
 }
 
 function markLines(s, score) {
@@ -432,6 +517,7 @@ function renderVerdict(s, score, timedOut) {
     h('div', { class: `verdict verdict-${v.cls} rise-in`, role: 'status' },
       h('p', { class: 'verdict-title', text: v.title }),
       h('p', { class: 'verdict-note', text: v.note })),
+    ...[whyNot(s, score)].filter(Boolean),
     h('dl', { class: 'breakdown' },
       rows.map(([k, val], i) => h('div', { class: `${val ? 'has ' : ''}fade-in-row`, style: { '--i': i } }, h('dt', { text: k }), h('dd', { text: val ? `+${val}` : '0' }))),
       score.multiplier !== 1 ? h('div', {}, h('dt', { text: 'Level multiplier' }), h('dd', { text: `×${score.multiplier}` })) : null,
@@ -440,7 +526,8 @@ function renderVerdict(s, score, timedOut) {
       h('p', { class: 'cat-label', text: 'The flaw' }),
       h('p', { class: 'cat-name', text: cat.name }),
       h('p', { class: 'cat-meta', text: [cat.owasp, cat.cwe].filter(Boolean).join(' · ') }),
-      h('p', { class: 'cat-summary', text: cat.summary })),
+      h('p', { class: 'cat-summary', text: cat.summary }),
+      h('a', { class: 'link-btn cat-guide', href: `?guide#flaw-${s.category}`, target: '_blank', rel: 'noopener' }, `How to spot ${cat.name} `, icon('arrow', 'icon icon-sm'))),
     h('button', { class: 'btn btn-primary btn-block', id: 'next', type: 'button', onclick: nextRound, text: isLast ? 'See results' : 'Next round' }));
   $('#next').focus({ preventScroll: true });
 }
@@ -455,23 +542,91 @@ export function staticCode(lines, language, marks, cls) {
       h('span', { class: 'lc', style: { '--ind': indentOf(text) } }, highlightLine(text || ' ', language)))));
 }
 
+/** Why the line or flaw type the player picked isn't the answer. */
+function whyNot(s, score) {
+  const parts = [];
+  if (game.pickedLine && !score.lineCorrect) {
+    const note = s.lineNotes?.[String(game.pickedLine)];
+    parts.push(h('p', {}, h('strong', { text: `Your line ${game.pickedLine}: ` }),
+      note || `that isn't where the flaw happens. Compare it with line ${s.vulnerableLine}, highlighted in red.`));
+  }
+  if (game.pickedType && !score.typeCorrect) {
+    const mine = category(game.pickedType);
+    const real = category(s.category);
+    parts.push(h('p', {}, h('strong', { text: `You said ${mine.name}: ` }), `${mine.summary} `,
+      h('strong', { text: `This is ${real.name}: ` }), real.summary));
+  }
+  return parts.length ? h('div', { class: 'why-not rise-in', style: { '--i': 1 } }, h('p', { class: 'cat-label', text: 'Why not your answer' }), parts) : null;
+}
+
+/** "Which fix works?": the real fix against classic wrong fixes for this flaw type. Not scored. */
+function fixQuestion(s, onDone) {
+  const decoys = shuffleList(ctx.content.guide?.[s.category]?.decoys || []).slice(0, 2);
+  const result = game.results[game.results.length - 1];
+  if (decoys.length < 2) { onDone(); return null; }
+  // Only the fix's first sentence, so its length doesn't give it away; the full fix shows after.
+  const firstSentence = (t) => (/^.+?[.!?](?=\s|$)/.exec(t) || [t])[0];
+  const choices = shuffleList([{ fix: firstSentence(s.fix.summary), right: true }, ...decoys]);
+  const box = h('div', { class: 'fix-question', role: 'group', 'aria-labelledby': 'fixq-title' });
+  const status = h('p', { class: 'fixq-why', 'aria-live': 'polite' });
+  const answer = (choice, btn) => {
+    if (box.classList.contains('is-done')) return;
+    box.classList.add('is-done');
+    result.fixOk = Boolean(choice.right);
+    $$('.fixq-option', box).forEach((b, i) => {
+      b.disabled = true;
+      if (choices[i].right) b.classList.add('is-right');
+    });
+    if (!choice.right) btn.classList.add('is-wrong');
+    status.textContent = choice.right ? 'Right. That fix closes the hole; here it is in the code.' : `Not quite: ${choice.why}`;
+    game.fixQuestion = null;
+    onDone();
+  };
+  fill(box,
+    h('h3', { id: 'fixq-title' }, 'Which fix works? ', h('span', { class: 'fixq-tag', text: 'Not scored' })),
+    h('div', { class: 'fixq-options' }, choices.map((c, i) => {
+      const btn = h('button', { class: 'fixq-option', type: 'button' }, h('span', { class: 'key', 'aria-hidden': 'true', text: String.fromCharCode(65 + i) }), h('span', { text: c.fix }));
+      btn.addEventListener('click', () => answer(c, btn));
+      return btn;
+    })),
+    status,
+    h('button', { class: 'link-btn fixq-skip', type: 'button', onclick: () => { if (!box.classList.contains('is-done')) { box.classList.add('is-done'); $$('.fixq-option', box).forEach((b) => { b.disabled = true; }); game.fixQuestion = null; onDone(); } } }, 'Skip and show the fix'));
+  game.fixQuestion = (letter) => {
+    const i = letter.toUpperCase().charCodeAt(0) - 65;
+    const btn = $$('.fixq-option', box)[i];
+    if (btn && !btn.disabled) btn.click();
+  };
+  return box;
+}
+
+const shuffleList = (list) => {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+};
+
 function renderReveal(s) {
-  $('#reveal').replaceChildren(
-    h('div', { class: 'explain panel card rise-in' },
-      h('div', {},
-        h('h3', { text: "What's wrong" }),
-        h('p', { text: s.explanation })),
-      h('div', {},
-        h('h3', { text: 'The fix' }),
-        h('p', { text: s.fix.summary })),
-      reportLink(s)),
-    h('div', { class: 'compare' },
+  const fixPart = h('div', { class: 'fix-part' });
+  const compare = h('div', { class: 'compare' });
+  const showFix = () => {
+    fill(fixPart, h('h3', { text: 'The fix' }), h('p', { text: s.fix.summary }));
+    fill(compare,
       h('div', { class: 'code-panel rise-in', style: { '--i': 1 } },
         h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-red' }), h('span', { text: 'Vulnerable' })),
         staticCode(s.code, s.language, new Set([s.vulnerableLine]), 'is-vuln')),
       h('div', { class: 'code-panel rise-in', style: { '--i': 2 } },
         h('div', { class: 'panel-bar' }, h('span', { class: 'dot dot-green' }), h('span', { text: 'Fixed' })),
-        staticCode(s.fix.code, s.language, new Set(s.fix.changedLines || []), 'is-fixed'))));
+        staticCode(s.fix.code, s.language, new Set(s.fix.changedLines || []), 'is-fixed')));
+  };
+  const question = fixQuestion(s, showFix);
+  $('#reveal').replaceChildren(
+    h('div', { class: 'explain panel card rise-in' },
+      h('div', {},
+        h('h3', { text: "What's wrong" }),
+        h('p', { text: s.explanation })),
+      h('div', { class: 'explain-side' }, question, fixPart),
+      reportLink(s)),
+    compare);
   if (matchMedia('(max-width: 900px)').matches) {
     $('#answer').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
   }
@@ -496,6 +651,7 @@ function reportLink(s) {
 }
 
 function nextRound() {
+  if (game.practice === 'tutorial') { finishTutorial(() => ctx.go('home')); return; }
   if (game.i < game.rounds.length - 1) {
     game.i += 1;
     window.scrollTo({ top: 0, behavior: 'instant' });

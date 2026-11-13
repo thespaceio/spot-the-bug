@@ -221,3 +221,13 @@ grant execute on function public.arcade_class_start(text) to authenticated;
 grant execute on function public.arcade_class_submit_game(uuid) to authenticated;
 grant execute on function public.arcade_mod_exams(text, integer) to authenticated;
 grant execute on function public.arcade_mod_exam_accept(uuid, text) to authenticated;
+
+-- Applied after v0.15.0 went live: the old way of posting a class game is retired.
+create or replace function public.arcade_class_submit(p_code text, p_answers jsonb)
+returns jsonb
+language plpgsql volatile security definer set search_path = ''
+as $$
+begin
+  raise exception 'This copy of Spot the Bug is out of date. Reload the page, then play the class game again.' using errcode = '22023';
+end
+$$;

@@ -45,7 +45,7 @@ const VIEW_STATION = {
   home: 'home', scoreboard: 'scoreboard', progress: 'progress', class: 'class', results: 'results',
   account: 'calm', about: 'calm', privacy: 'calm', cert: 'calm', moderate: 'calm',
 };
-const HIDDEN_VIEWS = new Set(['round', 'live']);
+const HIDDEN_VIEWS = new Set(['round', 'exam', 'live']);
 
 // ---------- textures drawn on canvases ----------
 

@@ -171,6 +171,14 @@ export async function pullHistory() {
 // ---------- certificates ----------
 
 /** Issues (or renames) the signed-in player's certificate from their posted games. */
+// ---------- certificate exam ----------
+
+export const examStatus = () => rpc('arcade_exam_status', {});
+export const examStart = (level) => rpc('arcade_exam_start', { p_level: level });
+export const examRound = (exam, round) => rpc('arcade_exam_round', { p_exam: exam, p_round: round });
+export const examAnswer = (exam, round, { line, type }) => rpc('arcade_stb_answer', { p_game: exam, p_round: round, p_line: line ?? null, p_type: type ?? null, p_left: 0 });
+export const examFinish = (exam) => rpc('arcade_exam_finish', { p_exam: exam });
+
 export const registerCertificate = (displayName) => rpc('arcade_register_certificate', { p_display_name: displayName || null });
 export const myCertificate = () => rpc('arcade_my_certificate', {});
 export const checkCertificate = (reference) => rpc('arcade_check_certificate', { p_reference: reference });

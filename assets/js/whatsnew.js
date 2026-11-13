@@ -6,6 +6,15 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.13',
+    title: 'The certificate exam',
+    items: [
+      'Earn the certificate in an exam at each level: 10 snippets you won\'t have seen in the game, 80% to pass, one attempt a day. Start it from your Progress page.',
+      'Practice is open every day now, by kind of code or by flaw type. Full games for the scoreboard stay on Game Night Fridays.',
+      'Turn the clock off for practice when you want to take your time.',
+    ],
+  },
+  {
     version: '0.12',
     title: 'Practise your weak spots',
     items: [

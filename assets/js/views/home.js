@@ -7,7 +7,7 @@ import { ctx, isOpen } from '../context.js';
 import { onlineEnabled, fetchBoard, liveUpdates } from '../online.js';
 import { heroSlides } from './slides.js';
 import { liveDot, boardTable, segmented } from './board.js';
-import { startGame, startPractice } from './round.js';
+import { startGame, startPractice, practiceClockOff, setPracticeClock } from './round.js';
 
 export function renderHome(root) {
   const cleanups = [];
@@ -63,7 +63,7 @@ export function renderHome(root) {
       h('h2', { text: 'Public games open on Fridays' }),
       h('p', {}, 'The next Game Night is ', h('strong', { text: nextGameNightLabel() }),
         '. Games open from midnight to midnight West Africa Time, and the Th3 SpaceIO community plays together live at 6pm.'),
-      h('p', { class: 'muted', text: 'Running staff training or a class? Team boards work any day. The scoreboard stays open too.' }),
+      h('p', { class: 'muted' }, 'Practice is open every day: ', h('a', { href: '#practice-title', text: 'practise one kind of code' }), ' below, or a flaw from your Progress page. Running staff training or a class? Team boards work any day.'),
       h('a', { class: 'btn btn-primary', href: GAME_NIGHT_URL, rel: 'noopener', text: 'Join Game Night' })),
     h('section', { id: 'levels', class: 'levels-section', 'aria-labelledby': 'levels-title' },
       pageHead({ eyebrow: 'SPACEIO // SECURE CODE', title: 'Choose your level', level: 'h2', id: 'levels-title' }),
@@ -99,16 +99,26 @@ function practiceSection() {
       h('div', { class: 'practice-head' }, icon(KIND_ICON[sf.id] || 'code', 'icon icon-green'), h('h3', { text: sf.label })),
       h('p', { class: 'muted', text: sf.summary }),
       h('button', {
-        type: 'button', class: 'btn btn-ghost', disabled: !isOpen() || !n,
+        type: 'button', class: 'btn btn-ghost', disabled: !n,
         onclick: () => startPractice(practiceChoice.level, sf.id),
-      }, isOpen() ? `Practise ${n} ${LEVELS[practiceChoice.level].label.toLowerCase()} snippets` : 'Opens on Friday'));
+      }, `Practise ${n} ${LEVELS[practiceChoice.level].label.toLowerCase()} snippets`));
   }));
   draw();
   return h('section', { class: 'practice-section', 'aria-labelledby': 'practice-title' },
     pageHead({ eyebrow: 'SPACEIO // PRACTICE', title: 'Practise one kind of code', level: 'h2', id: 'practice-title',
-      lead: 'Drill backend, mobile or config snippets on their own. Practice games count towards your Progress, not the scoreboard or certificate.' }),
-    segmented('Practice level', Object.values(LEVELS).map((l) => ({ id: l.id, label: l.label })), practiceChoice.level, (id) => { practiceChoice.level = id; draw(); }),
+      lead: 'Drill backend, mobile or config snippets on their own, any day of the week. Practice counts towards your Progress, not the scoreboard or certificate.' }),
+    h('div', { class: 'practice-controls' },
+      segmented('Practice level', Object.values(LEVELS).map((l) => ({ id: l.id, label: l.label })), practiceChoice.level, (id) => { practiceChoice.level = id; draw(); }),
+      clockSetting()),
     grid);
+}
+
+/** Clock on or off for practice (kept on this device; ranked games always have the clock). */
+export function clockSetting() {
+  return h('div', { class: 'clock-setting' },
+    h('span', { class: 'clock-label', text: 'Clock' }),
+    segmented('Clock for practice', [{ id: 'on', label: 'On' }, { id: 'off', label: 'Off' }], practiceClockOff() ? 'off' : 'on',
+      (id) => setPracticeClock(id === 'on')));
 }
 
 // The title stage: the name and the way in on the left; on the right, the 3D

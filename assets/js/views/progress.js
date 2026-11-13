@@ -2,19 +2,19 @@
 // the certificate. From this device's games, plus the account's when signed in.
 import { LEVELS, SITE_URL } from '../config.js';
 import { h, icon, pageHead, fill, fmt, dateLabel, countUp } from '../dom.js';
-import { ctx, category, isOpen } from '../context.js';
+import { ctx, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
-import { onlineEnabled, myCertificate, registerCertificate } from '../online.js';
+import { onlineEnabled, myCertificate, registerCertificate, examStatus } from '../online.js';
+import { EXAM_PASS } from './exam.js';
 import { myGames, syncHistory, syncState, onSync } from '../sync.js';
 import { levelStats, categoryStats, weakSpots, totals, surfaceStats } from '../stats.js';
 import { certificateProgress, progressFromOnline, drawCertificate, formatLongDate, CERTIFICATE_ACCURACY } from '../draw.js';
-import { startGame, startFlawPractice } from './round.js';
+import { startFlawPractice } from './round.js';
+import { clockSetting } from './home.js';
 import { prefs } from '../storage.js';
 
 function practiseButton(flaws, label, cls) {
-  const open = isOpen();
-  return h('button', { type: 'button', class: cls, disabled: !open, title: open ? null : 'Practice opens on Friday',
-    onclick: () => startFlawPractice(flaws) }, label);
+  return h('button', { type: 'button', class: cls, onclick: () => startFlawPractice(flaws) }, label);
 }
 
 export function renderProgress(root) {
@@ -45,7 +45,8 @@ function page(cleanups) {
     return [head, h('section', { class: 'panel card empty-state' },
       icon('chart', 'icon icon-lg'),
       h('p', { text: 'Finish a game and your progress shows up here: accuracy per level, the flaw types you miss most, and your road to the certificate.' }),
-      h('button', { type: 'button', class: 'btn btn-primary', onclick: () => ctx.go('home') }, icon('play', 'icon icon-sm'), 'Play a game'))];
+      h('button', { type: 'button', class: 'btn btn-primary', onclick: () => ctx.go('home') }, icon('play', 'icon icon-sm'), 'Play a game')),
+      certificatePanel(games, cleanups)];
   }
 
   const t = totals(games);
@@ -109,9 +110,9 @@ function page(cleanups) {
         practiseButton([w.category.id], 'Practise this flaw', 'btn btn-quiet btn-small')))),
       weak.length > 1 ? h('div', { class: 'btn-row' },
         practiseButton(weak.slice(0, 3).map((w) => w.category.id), `Practise all ${Math.min(3, weak.length)}`, 'btn btn-ghost')) : null,
-      h('p', { class: 'save-hint', text: isOpen()
-        ? 'Practice drills the flaw on snippets from every level. It counts towards Progress, not the scoreboard.'
-        : 'Practice opens on Friday, with the rest of the game.' })) : null,
+      h('div', { class: 'weak-foot' },
+        h('p', { class: 'save-hint', text: 'Practice drills the flaw on snippets from every level, any day. It counts towards Progress, not the scoreboard.' }),
+        clockSetting())) : null,
     certificatePanel(games, cleanups),
     h('section', { class: 'panel card' },
       h('h2', { text: 'Recent games' }),
@@ -142,26 +143,76 @@ function syncNote() {
 // ---------- certificate ----------
 
 function certificatePanel(games, cleanups) {
-  const progress = certificateProgress(games);
   const panel = h('section', { class: 'panel card cert-panel', 'aria-labelledby': 'cert-heading' });
   const heading = h('h2', { id: 'cert-heading' }, icon('trophy', 'icon icon-sm icon-green'), ' Spot the Bug certificate');
+  const intro = h('p', { class: 'muted', text: `The certificate comes from a separate exam at each level: 10 snippets you won't have seen in the game, ${EXAM_PASS}% to pass, no answers shown, one attempt a day. Pass all three for a certificate anyone can check online.` });
 
-  if (!progress.earned) {
-    return fill(panel, heading,
-      h('p', { class: 'muted', text: `Score at least ${CERTIFICATE_ACCURACY}% in a game at every level to earn a certificate you can print, share or add to LinkedIn.` }),
-      h('ul', { class: 'cert-levels' }, Object.values(LEVELS).map((lvl) => {
-        const { best, passedWith } = progress.levels[lvl.id];
-        return h('li', { class: 'cert-level' },
-          h('div', {}, h('strong', { text: lvl.label }), h('p', { class: 'muted', text: passedWith
-            ? `Passed with ${passedWith.accuracy}% on ${formatLongDate(passedWith.date)}`
-            : best ? `Best so far ${best.accuracy}%, need ${CERTIFICATE_ACCURACY}%` : 'Not played yet' })),
-          passedWith
-            ? h('span', { class: 'cert-check', role: 'img', 'aria-label': 'Passed' }, icon('check', 'icon icon-sm'))
-            : h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => startGame(lvl.id) }, icon('play', 'icon icon-sm'), 'Play'));
-      })));
+  if (!onlineEnabled()) {
+    return fill(panel, heading, intro, h('p', { class: 'muted', text: 'The exam runs online, so it needs a connection.' }));
+  }
+  if (auth.status === 'loading') return fill(panel, heading, intro, h('p', { class: 'muted', text: 'Checking your sign-in…' }));
+  if (!isReady()) {
+    return fill(panel, heading, intro,
+      h('div', { class: 'btn-row' },
+        h('button', { type: 'button', class: 'btn btn-primary', onclick: () => { ctx.returnTo = 'progress'; ctx.go('account'); } },
+          icon('user', 'icon icon-sm'), auth.status === 'signedIn' ? 'Choose a username to take the exam' : 'Sign in or quick join to take the exam')));
   }
 
-  const state = { online: null, name: prefs.get('certName', '') || (isReady() && (auth.profile.full_name || auth.profile.username)) || '', url: null, blob: null };
+  fill(panel, heading, intro, h('p', { class: 'muted', role: 'status', text: 'Loading your exam results…' }));
+  Promise.all([myCertificate(), examStatus()]).then(async ([cert, status]) => {
+    if (cert) { earnedPanel(panel, heading, cert, cleanups); return; }
+    const levels = Object.keys(LEVELS);
+    if (levels.every((id) => status?.[id]?.passed)) {
+      try {
+        const issued = await registerCertificate(prefs.get('certName', '') || auth.profile.full_name || auth.profile.username);
+        earnedPanel(panel, heading, issued, cleanups);
+        return;
+      } catch { /* show the list; registering can be retried from here */ }
+    }
+    fill(panel, heading, intro, examList(status, games));
+  }).catch((err) => {
+    fill(panel, heading, intro, h('p', { class: 'save-msg is-warning', text: err.message || "Couldn't load your exam results." }));
+  });
+  return panel;
+}
+
+/** One row per level: passed, in progress, waiting for tomorrow, or ready to take. */
+function examList(status, games) {
+  const readiness = certificateProgress(games);   // this device's best normal game per level, as a guide
+  const when = (iso) => new Date(iso).toLocaleString('en-NG', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+  return [
+    h('ul', { class: 'exam-levels' }, Object.values(LEVELS).map((lvl) => {
+      const st = status?.[lvl.id] || {};
+      const best = readiness.levels[lvl.id].best;
+      let note;
+      let action;
+      if (st.passed) {
+        note = `Passed with ${st.accuracy}% on ${formatLongDate(st.passed_at)}`;
+        action = h('span', { class: 'cert-check', role: 'img', 'aria-label': 'Passed' }, icon('check', 'icon icon-sm'));
+      } else if (st.open) {
+        note = `Exam in progress: ${st.open.answered} of 10 answered. Carry on within 2 hours of starting.`;
+        action = h('button', { type: 'button', class: 'btn btn-primary btn-small', onclick: () => ctx.go('exam', { level: lvl.id }) }, icon('play', 'icon icon-sm'), 'Carry on');
+      } else if (st.next_attempt_at) {
+        note = `Last attempt ${st.last_accuracy ?? 0}%. Your next attempt opens ${when(st.next_attempt_at)}.`;
+        action = h('button', { type: 'button', class: 'btn btn-ghost btn-small', disabled: true, text: 'Tomorrow' });
+      } else if (!st.ready) {
+        note = 'This exam is being prepared. Check back soon.';
+        action = null;
+      } else {
+        note = best ? `Your best ${lvl.label} game so far: ${best.accuracy}%. Aim for ${EXAM_PASS}% before you take it.` : `Play a few ${lvl.label} games first, then take it when you're scoring ${EXAM_PASS}%.`;
+        action = h('button', { type: 'button', class: 'btn btn-ghost btn-small', onclick: () => ctx.go('exam', { level: lvl.id }) }, icon('shield', 'icon icon-sm'), 'Take the exam');
+      }
+      return h('li', { class: 'exam-level' },
+        h('div', {}, h('strong', { text: lvl.label }), h('p', { class: 'muted', text: note })),
+        action);
+    })),
+    h('p', { class: 'hint', text: 'Exam answers are never shown, so the exam can\'t be learnt by heart: practise the flaw types instead.' }),
+  ];
+}
+
+/** The certificate itself, once all three exams are passed (it is always registered online). */
+function earnedPanel(panel, heading, cert, cleanups) {
+  const state = { online: cert, name: prefs.get('certName', '') || cert.display_name || '', url: null, blob: null };
   const img = h('img', { class: 'cert-image', alt: 'Your Spot the Bug certificate' });
   const nameInput = h('input', { id: 'cert-name', class: 'input', maxlength: '48', value: state.name, autocomplete: 'name' });
   const msg = h('p', { class: 'save-msg', 'aria-live': 'polite' });
@@ -170,9 +221,8 @@ function certificatePanel(games, cleanups) {
 
   let drawTimer = 0;
   async function redraw() {
-    const p = state.online ? progressFromOnline(state.online) : progress;
     try {
-      const blob = await drawCertificate(p, state.name, state.online?.reference || null);
+      const blob = await drawCertificate(progressFromOnline(state.online), state.name, state.online.reference);
       if (state.url) URL.revokeObjectURL(state.url);
       state.blob = blob;
       state.url = URL.createObjectURL(blob);
@@ -192,15 +242,16 @@ function certificatePanel(games, cleanups) {
 
   function renderActions() {
     const fileName = `spot-the-bug-certificate-${(state.name.trim() || 'player').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
-    const earned = new Date(state.online?.completed_on || progress.earnedOn);
-    const ref = state.online?.reference;
+    const earned = new Date(state.online.completed_on);
+    const ref = state.online.reference;
     const linkedIn = new URLSearchParams({
       startTask: 'CERTIFICATION_NAME',
       name: 'Spot the Bug Secure Code Review Training',
       organizationName: 'Th3 SpaceIO',
       issueYear: String(earned.getFullYear()),
       issueMonth: String(earned.getMonth() + 1),
-      ...(ref ? { certId: ref, certUrl: `${SITE_URL}?cert=${ref}` } : { certUrl: SITE_URL }),
+      certId: ref,
+      certUrl: `${SITE_URL}?cert=${ref}`,
     });
     const file = state.blob ? new File([state.blob], fileName, { type: 'image/png' }) : null;
     const canShare = Boolean(file && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] }));
@@ -208,39 +259,26 @@ function certificatePanel(games, cleanups) {
       h('a', { class: 'btn btn-primary', href: state.url || '#', download: fileName }, 'Download (PNG)'),
       canShare ? h('button', {
         type: 'button', class: 'btn btn-ghost',
-        onclick: () => navigator.share({ files: [file], title: 'My Spot the Bug certificate', text: `I completed all three levels of Spot the Bug secure code review training. Try it: ${SITE_URL}` }).catch(() => {}),
+        onclick: () => navigator.share({ files: [file], title: 'My Spot the Bug certificate', text: `I passed the Spot the Bug secure code review exam at all three levels. Try the game: ${SITE_URL}` }).catch(() => {}),
       }, 'Share') : null,
       h('a', { class: 'btn btn-ghost', href: `https://www.linkedin.com/profile/add?${linkedIn}`, target: '_blank', rel: 'noopener noreferrer' }, 'Add to LinkedIn'));
   }
 
   function renderOnline() {
-    if (!onlineEnabled()) { fill(onlineBox); return; }
-    if (state.online) {
-      const link = `${SITE_URL}?cert=${state.online.reference}`;
-      fill(onlineBox,
-        h('p', {}, icon('check', 'icon icon-sm icon-green'), ' Checkable online as ', h('strong', { class: 'mono', text: state.online.reference }), '. Anyone can confirm it at ',
-          h('a', { href: `?cert=${state.online.reference}`, onclick: (e) => { e.preventDefault(); ctx.go('cert', { reference: state.online.reference }); }, text: link.replace(/^https:\/\//, '') }), '.'),
-        h('button', { type: 'button', class: 'link-btn', onclick: () => register(), text: 'Save this name on the online record' }));
-      return;
-    }
-    if (!isReady()) {
-      fill(onlineBox, h('p', { class: 'muted' }, 'Want employers to be able to check it? ',
-        h('button', { type: 'button', class: 'link-btn inline', onclick: () => { ctx.returnTo = 'progress'; ctx.go('account'); }, text: 'Sign in' }),
-        ', post a game with at least 80% at each level, then make it checkable online.'));
-      return;
-    }
+    const link = `${SITE_URL}?cert=${state.online.reference}`;
     fill(onlineBox,
-      h('p', { class: 'muted', text: 'Make it checkable online: you get a reference like SB-7K2Q-X9AB and a link anyone can open. It uses the games you posted to the online scoreboard.' }),
-      h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => register() }, icon('shield', 'icon icon-sm'), 'Make it checkable online'));
+      h('p', {}, icon('check', 'icon icon-sm icon-green'), ' Checkable online as ', h('strong', { class: 'mono', text: state.online.reference }), '. Anyone can confirm it at ',
+        h('a', { href: `?cert=${state.online.reference}`, onclick: (e) => { e.preventDefault(); ctx.go('cert', { reference: state.online.reference }); }, text: link.replace(/^https:\/\//, '') }), '.'),
+      h('button', { type: 'button', class: 'link-btn', onclick: () => rename(), text: 'Save this name on the online record' }));
   }
 
-  async function register() {
+  async function rename() {
     msg.className = 'save-msg is-pending';
-    msg.textContent = 'Registering your certificate…';
+    msg.textContent = 'Saving the name…';
     try {
       state.online = await registerCertificate(state.name);
       msg.className = 'save-msg';
-      msg.textContent = `Registered as ${state.online.reference}.`;
+      msg.textContent = 'Saved.';
       renderOnline();
       redraw();
     } catch (err) {
@@ -249,20 +287,10 @@ function certificatePanel(games, cleanups) {
     }
   }
 
-  if (isReady()) {
-    myCertificate().then((cert) => {
-      if (!cert) return;
-      state.online = cert;
-      if (!prefs.get('certName', '')) { state.name = cert.display_name; nameInput.value = cert.display_name; }
-      renderOnline();
-      redraw();
-    }).catch(() => {});
-  }
   renderOnline();
   redraw();
-
-  return fill(panel, heading,
-    h('p', { class: 'cert-earned' }, icon('check', 'icon icon-sm icon-green'), ` You've earned it: ${CERTIFICATE_ACCURACY}% or more at every level.`),
+  fill(panel, heading,
+    h('p', { class: 'cert-earned' }, icon('check', 'icon icon-sm icon-green'), ' You\'ve earned it: you passed the certificate exam at every level.'),
     h('div', { class: 'field' }, h('label', { for: 'cert-name', text: 'Name on the certificate' }), nameInput),
     h('div', { class: 'cert-preview' }, img),
     actions, onlineBox, msg,

@@ -63,9 +63,9 @@ function found(cert) {
       h('div', {}, h('dt', { text: 'Reference' }), h('dd', { class: 'mono', text: cert.reference })),
       ...Object.values(LEVELS).map((lvl) => {
         const l = cert.levels?.[lvl.id];
-        return h('div', {}, h('dt', { text: lvl.label }), h('dd', { text: l ? `${l.accuracy}% accuracy, ${Number(l.score).toLocaleString('en-NG')} points, ${formatLongDate(l.played_at)}` : '–' }));
+        return h('div', {}, h('dt', { text: lvl.label }), h('dd', { text: l ? `${l.accuracy}% in the exam, ${formatLongDate(l.played_at)}` : '–' }));
       })),
-    h('p', { class: 'hint', text: 'Every level was a full ten-round game, scored by the server from the answers given, with at least 80% accuracy.' }));
+    h('p', { class: 'hint', text: 'Each level was passed in the certificate exam: ten snippets from a private pool that never appears in the game, timed and marked by the server, with at least 80% found cleanly.' }));
 }
 
 function notFound(ref) {

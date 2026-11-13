@@ -418,8 +418,8 @@ button { font: inherit; color: inherit; }
   .nav-short { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .nav-icon { width: 20px; height: 20px; }
   body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-  body[data-view="round"] .nav, body[data-view="live"] .nav { display: none; }
-  body[data-view="round"] { padding-bottom: 0; }
+  body[data-view="round"] .nav, body[data-view="exam"] .nav, body[data-view="live"] .nav { display: none; }
+  body[data-view="round"], body[data-view="exam"] { padding-bottom: 0; }
   .topbar-inner { height: 56px; }
   .team-badge { max-width: 46vw; }
 }
@@ -1027,7 +1027,8 @@ html.has-world .card, html.has-world .panel, html.has-world .stat, html.has-worl
 html.has-world .podium-step { background: rgba(18, 37, 64, 0.86); }
 html.has-world .footer { background: rgba(5, 8, 13, 0.82); }
 html.has-world .hero-slides { background: linear-gradient(160deg, rgba(14, 29, 51, 0.72), rgba(10, 22, 40, 0.42)); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-html.has-world body[data-view="round"] .card, html.has-world body[data-view="round"] .panel { background: var(--surface); }
+html.has-world body[data-view="round"] .card, html.has-world body[data-view="round"] .panel,
+html.has-world body[data-view="exam"] .card, html.has-world body[data-view="exam"] .panel { background: var(--surface); }
 
 /* Cards that lean toward the pointer (tilt.js sets --rx, --ry, --gx, --gy). */
 .tilt-on, .tilt-on.lift:hover { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateZ(0); transform-style: preserve-3d; transition: transform 0.12s ease-out; will-change: transform; }
@@ -1115,3 +1116,26 @@ html.has-world .stage-copy::before {
 /* v0.12 accessibility: code lines are at least 24px tall to tap */
 .code .line { min-height: 24px; align-items: baseline; padding-block: max(0px, calc((24px - 1.7em) / 2)); }   /* number beside the first row of a wrapped line */
 .code:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+
+/* v0.13: practice every day, with the clock on or off */
+.practice-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; margin: 4px 0 16px; }
+.practice-section .practice-controls .segmented { margin: 0; }
+.clock-setting { display: inline-flex; align-items: center; gap: 10px; }
+.clock-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gray); }
+.weak-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; margin-top: 12px; }
+.weak-foot .save-hint { margin: 0; flex: 1 1 260px; }
+.timer.is-off { display: flex; align-items: center; }
+.timer-off { font-family: var(--font-mono); font-size: 13px; color: var(--gray); }
+
+/* v0.13: the certificate exam */
+.exam-intro, .exam-result, .exam-wait { max-width: 720px; margin: 24px auto; }
+.exam-wait { text-align: center; padding: 40px 24px; }
+.exam-rules { list-style: none; padding: 0; margin: 16px 0 22px; display: grid; gap: 10px; }
+.exam-rules li { display: flex; gap: 10px; align-items: flex-start; color: var(--text); }
+.exam-rules .icon { flex: 0 0 auto; margin-top: 3px; }
+.exam-result h1 { display: flex; align-items: center; gap: 10px; }
+.exam-result.is-pass { border-color: var(--green); }
+.exam-levels { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+.exam-level { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.exam-level p { margin: 2px 0 0; }
+.exam-level .cert-check { margin-left: auto; }

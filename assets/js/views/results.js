@@ -1,6 +1,6 @@
 // End of game: score, focus areas, posting to the online board, round review.
 import { h, icon, fmt, countUp, revealText, fill } from '../dom.js';
-import { ctx, canPostOnline, boardName, category, isOpen } from '../context.js';
+import { ctx, canPostOnline, boardName, category } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
 import { onlineEnabled, postGame, fetchBoard, submitClassGame, classBoard } from '../online.js';
 import { history } from '../storage.js';
@@ -158,7 +158,7 @@ export function practiceName(r) {
 function focusPanel(r) {
   const sum = r.summary;
   const played = r.results.map((x) => x.snippet.id);
-  const open = isOpen();
+  const open = true;   // practice is open every day
   const others = (id) => ctx.content.snippets.filter((s) => s.category === id && !played.includes(s.id)).length;
   const practiseBtn = (ids, label, cls) => h('button', {
     type: 'button', class: cls, disabled: !open,
@@ -178,9 +178,7 @@ function focusPanel(r) {
       others(f.id) ? practiseBtn([f.id], 'Practise', 'btn btn-quiet btn-sm focus-practise') : null))),
     ids.length > 1 ? h('div', { class: 'btn-row focus-actions' },
       practiseBtn(ids, `Practise these ${ids.length} flaws`, 'btn btn-ghost')) : null,
-    h('p', { class: 'save-hint', text: open
-      ? 'Practice uses other snippets with the same flaw, from every level. It counts towards Progress, not the scoreboard.'
-      : 'Practice opens on Friday, with the rest of the game.' }));
+    h('p', { class: 'save-hint', text: 'Practice uses other snippets with the same flaw, from every level. It counts towards Progress, not the scoreboard.' }));
 }
 
 // A class game goes to the class board (not the public scoreboard), once.

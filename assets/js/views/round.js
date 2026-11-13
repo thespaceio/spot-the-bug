@@ -4,7 +4,7 @@ import { buildGame, buildClassGame, buildPractice, buildFlawPractice, surfaceOf,
 import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
 import { h, $, $$, fmt, pop, reduceMotion, icon } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
-import { newGameId, recentSnippetIds } from '../storage.js';
+import { newGameId, recentSnippetIds, prefs } from '../storage.js';
 import { rankedSession } from '../online.js';
 
 const game = {
@@ -26,6 +26,7 @@ const game = {
   practice: null,     // 'backend' | 'mobile' | 'config' | 'flaws' for a practice game
   flaws: null,        // the flaw types of a 'flaws' practice game
   session: null,      // a ranked game's server record (online.js rankedSession)
+  untimed: false,     // practice with the clock turned off
 };
 let root = null;
 
@@ -41,15 +42,13 @@ export function confirmLeave() {
   return window.confirm("Leave this game? This round won't be saved.");
 }
 
-/** Practice one kind of code at one level (counts towards Progress only). */
+/** Practice one kind of code at one level (counts towards Progress only). Open every day. */
 export function startPractice(levelId, surface) {
-  if (!isOpen()) { ctx.go('home'); return; }
   ctx.go('round', { level: levelId, practice: surface });
 }
 
 /** Practise particular flaw types, with snippets from every level (counts towards Progress only). */
 export function startFlawPractice(flaws, skip = []) {
-  if (!isOpen()) { ctx.go('home'); return; }
   ctx.go('round', { level: 'beginner', practice: 'flaws', flaws, skip });
 }
 
@@ -83,6 +82,7 @@ function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
   game.practice = practice;
   game.flaws = practice === 'flaws' ? flaws : null;
   game.session = null;
+  game.untimed = Boolean(practice) && practiceClockOff();
   const args = { snippets: ctx.content.snippets, categories: ctx.content.categories, level: lvl, rounds: ROUNDS_PER_GAME, recent: recentSnippetIds() };
   if (practice === 'flaws') game.rounds = buildFlawPractice({ ...args, levels: LEVELS, flaws: flaws || [], skip });
   else if (practice) game.rounds = buildPractice({ ...args, surface: practice });
@@ -100,6 +100,10 @@ function begin(levelId, practice = null, { flaws = null, skip = [] } = {}) {
   }
   reset();
 }
+
+/** Practice can be played without the clock (a setting on this device). */
+export const practiceClockOff = () => prefs.get('practiceClock', 'on') === 'off';
+export const setPracticeClock = (on) => prefs.set('practiceClock', on ? 'on' : 'off');
 
 /** This round's level: a flaw practice game mixes levels, everything else has one. */
 const roundLevel = () => game.rounds[game.i]?.level || game.level;
@@ -129,6 +133,7 @@ function beginClass(info) {
   game.practice = null;
   game.flaws = null;
   game.session = null;
+  game.untimed = false;
   game.rounds = rounds;
   reset();
 }
@@ -152,11 +157,13 @@ function hud() {
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Score' }), h('span', { class: 'hud-value', id: 'hud-score', text: fmt(game.score) })),
       h('div', { class: 'hud-item' }, h('span', { class: 'hud-label', text: 'Streak' }),
         h('span', { class: `hud-value${game.streak >= 3 ? ' is-hot' : ''}`, id: 'hud-streak', text: `×${game.streak}` }))),
-    h('div', { class: 'timer', role: 'timer', 'aria-label': 'Time left' },
-      h('span', { class: 'timer-num', id: 'timer-num', text: roundLevel().seconds }),
-      h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
+    game.untimed
+      ? h('div', { class: 'timer is-off' }, h('span', { class: 'timer-off', text: 'No clock: take your time' }))
+      : h('div', { class: 'timer', role: 'timer', 'aria-label': 'Time left' },
+        h('span', { class: 'timer-num', id: 'timer-num', text: roundLevel().seconds }),
+        h('div', { class: 'timer-track' }, h('div', { class: 'timer-bar', id: 'timer-bar' }))),
     h('div', { class: 'hud-actions' },
-      h('button', { class: 'btn btn-quiet', id: 'pause', type: 'button', 'aria-keyshortcuts': 'P', onclick: togglePause }, icon('pause', 'icon icon-sm'), h('span', { text: 'Pause' })),
+      game.untimed ? null : h('button', { class: 'btn btn-quiet', id: 'pause', type: 'button', 'aria-keyshortcuts': 'P', onclick: togglePause }, icon('pause', 'icon icon-sm'), h('span', { text: 'Pause' })),
       h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => ctx.go(game.classInfo ? 'class' : 'home'), text: 'Quit' })));
 }
 
@@ -285,11 +292,12 @@ function updateLock() {
 // ---------- pause ----------
 
 function onHidden() {
+  if (game.untimed) return;
   if (document.visibilityState === 'hidden' && game.phase === 'answer' && !game.paused) togglePause();
 }
 
 function togglePause() {
-  if (game.phase !== 'answer') return;
+  if (game.phase !== 'answer' || game.untimed) return;
   const cover = $('#pause-cover');
   const button = $('#pause');
   if (!cover || !button) return;
@@ -317,6 +325,7 @@ function togglePause() {
 
 function startTimer(remainingMs = null) {
   stopTimer();
+  if (game.untimed) return;
   const totalMs = roundLevel().seconds * 1000;
   game.deadline = performance.now() + (remainingMs ?? totalMs);
   const bar = $('#timer-bar');
@@ -343,7 +352,7 @@ function lockIn(timedOut) {
   if (!timedOut && !(game.pickedLine && game.pickedType)) return;
   game.phase = 'reveal';
   $('#pause')?.setAttribute('disabled', '');
-  const left = timedOut ? 0 : Math.max(0, (game.deadline - performance.now()) / 1000);
+  const left = timedOut || game.untimed ? 0 : Math.max(0, (game.deadline - performance.now()) / 1000);
   stopTimer();
 
   const s = game.rounds[game.i].snippet;

@@ -203,8 +203,8 @@ export async function drawCertificate(progress, displayName, reference = null) {
 
   ctx.fillStyle = INK_MUTED;
   ctx.font = '400 31px "Space Grotesk", sans-serif';
-  ctx.fillText('completed all three levels of Spot the Bug, finding OWASP Top 10 security flaws in backend', cx, 768);
-  ctx.fillText('code, mobile apps and cloud configuration, with at least 80% accuracy at every level.', cx, 814);
+  ctx.fillText('passed the Spot the Bug exam at all three levels, finding OWASP Top 10 security flaws in', cx, 768);
+  ctx.fillText('backend code, mobile apps and cloud configuration, with at least 80% found cleanly.', cx, 814);
 
   const boxW = 440;
   const gap = 40;

@@ -8,6 +8,7 @@ import { auth, isReady, onAuthChange, startAuth } from './auth.js';
 import { checkTeam, onlineEnabled } from './online.js';
 import { renderHome } from './views/home.js';
 import { renderRound, confirmLeave } from './views/round.js';
+import { renderExam, confirmLeaveExam } from './views/exam.js';
 import { renderResults } from './views/results.js';
 import { renderScoreboard } from './views/scoreboard.js';
 import { renderAccount } from './views/account.js';
@@ -29,6 +30,7 @@ import { startTilt } from './tilt.js';
 const VIEWS = {
   home: renderHome,
   round: renderRound,
+  exam: renderExam,
   results: renderResults,
   scoreboard: renderScoreboard,
   account: renderAccount,
@@ -51,7 +53,7 @@ const NAV = [
   { id: 'about', label: 'About', short: 'About', icon: 'info' },
   { id: 'account', label: 'Sign in', short: 'Sign in', icon: 'user' },
 ];
-const NAV_FOR = { round: 'home', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
+const NAV_FOR = { round: 'home', exam: 'progress', results: 'home', live: 'scoreboard', privacy: 'about', cert: 'progress', moderate: 'account' };
 
 let cleanup = null;
 const START = new URLSearchParams(location.search);   // read before the address is tidied
@@ -83,6 +85,7 @@ function viewFromUrl() {
 function go(view, opts = {}, { push = true } = {}) {
   if (!VIEWS[view]) view = 'home';
   if (ctx.view === 'round' && view !== 'round' && !confirmLeave()) return false;
+  if (ctx.view === 'exam' && view !== 'exam' && !confirmLeaveExam()) return false;
   const previous = cleanup;
   cleanup = null;
   ctx.view = view;
@@ -120,6 +123,7 @@ window.addEventListener('popstate', (e) => {
   if (view === 'class' && ctx.view === 'class') { go('class', { code: new URLSearchParams(location.search).get('class') || '' }, { push: false }); return; }
   if (view === ctx.view && view !== 'cert') return;
   if (view === 'round') { go('home', {}, { push: false }); return; }       // a finished or left game can't be resumed
+  if (view === 'exam') { go('progress', {}, { push: false }); return; }   // carried on from Progress
   if (view === 'results' && !ctx.result) { go('home', {}, { push: false }); return; }
   if (!go(view, {}, { push: false })) history.pushState({ view: ctx.view }, '', urlFor(ctx.view));   // stayed in the game
 });

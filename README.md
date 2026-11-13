@@ -8,6 +8,12 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.13.0
+
+- **Certificate exam.** The certificate now comes from an exam at each level, not from scoreboard games. Each exam is 10 snippets from a **private pool** that never appears in the game or in this repository (36 snippets, 12 per level, all 20 flaw types; content in the private repository `thespaceio/spot-the-bug-exam`, loaded only into `arcade.stb_exam_snippets`). The server sends each round's code only when that round starts, times it on its own clock, never sends the answer, and at the end returns only the accuracy and whether it passed (80%, 8 of 10 clean). One attempt per level per day; an unfinished attempt can be carried on for 2 hours. Exams are open every day. Start one from the certificate panel on **Progress** (`assets/js/views/exam.js`, migration `20261113120000_arcade_certificate_exam.sql`).
+- **Practice every day.** Practice by kind of code (home page) and by flaw type (results and Progress) is open every day; full games for the scoreboard stay on Game Night Fridays.
+- **Clock on or off for practice**, on the home page and Progress (remembered on the device). Full games and the exam always have the clock.
+
 ## What's new in v0.12.0
 
 - **Server-timed games for the online scoreboard.** A ranked game is opened on the server when it starts (`arcade_stb_start`), the server notes when each round is shown, paused, resumed (`arcade_stb_clock`) and answered (`arcade_stb_answer`), and posting (`arcade_stb_post`) scores the game from that record. The browser can no longer claim time it didn't take, an answer that arrives well after the clock ran out counts as no answer, only a game that was really played, in order, can be posted, and only once. A game with 3 or more clean rounds answered in under 2 seconds is posted hidden and flagged `too-fast` for a moderator. The old `arcade_submit_spot_the_bug` now asks out-of-date copies to reload. See "Scoreboard integrity" for what this does and doesn't stop.
@@ -53,7 +59,7 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 
 - **Progress page** (`?progress`): games, rounds, accuracy and best streak; accuracy per level and per flaw type; the three weakest flaw types to practise; recent games.
 - **Synced history:** signed-in players' games are kept in their account, so Progress follows them to every device. Guest games on a device join the account the first time the player signs in there.
-- **Certificate:** 80% or more in a full game at every level earns an A4 certificate drawn in the browser: download, share, or **Add to LinkedIn**. Signed-in players can make it **checkable online** with a reference like `SB-7K2Q-X9AB`; anyone can check it at `?cert=SB-7K2Q-X9AB` (also linked from the footer). The online certificate uses only games posted to the scoreboard, which the server scored itself.
+- **Certificate:** an A4 certificate drawn in the browser (download, share, or **Add to LinkedIn**) with a reference like `SB-7K2Q-X9AB` that anyone can check at `?cert=SB-7K2Q-X9AB` (also linked from the footer). Since v0.13.0 it is earned by passing the certificate exam at every level (see v0.13.0 above).
 - **Share card:** a 1200×630 image of your result, with WhatsApp, LinkedIn and X links.
 - **Pause:** the Pause button or the P key stops the clock and hides the code; switching tabs pauses automatically.
 - **Report a mistake** on every answer screen: opens a GitHub issue with the snippet's ID filled in (label `content`), or an email.
@@ -96,7 +102,8 @@ Live at **https://thespaceio.github.io/spot-the-bug/**
 - Scores also saved on the device, used when the online board can't be reached
 - Keyboard play: ↑ ↓ to move between lines, Enter to select, number keys to pick a type, L to lock in
 - Progress per level, flaw type and kind of code, synced to the account when signed in
-- Certificate for 80%+ at every level, with online checking (`?cert=REF`) and Add to LinkedIn
+- Certificate exam at each level from a private pool (no answers shown, one attempt a day); the certificate has online checking (`?cert=REF`) and Add to LinkedIn
+- Practice every day, by kind of code or by flaw type, with the clock on or off
 - Share card, pause, report a mistake, What's new, offline play
 - Free classroom mode with a shared game per class, a live class board, a debrief and a projector view
 - Moderation tools for the Th3 SpaceIO team
@@ -150,7 +157,7 @@ assets/js/qr.js               QR codes for join links
 assets/js/intro.js            the opening scene
 assets/js/world.js            the 3D world (three.js)
 assets/js/tilt.js             cards that lean toward the mouse
-assets/js/views/*.js          one file per screen: home, round, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
+assets/js/views/*.js          one file per screen: home, round, exam, results, scoreboard, progress, certcheck, classroom, moderate, account, about, privacy, live
 assets/vendor/                Supabase and QR code libraries (copied from npm, see the README there)
 data/manifest.json            which snippet packs to load
 data/categories.json          the 20 vulnerability types (OWASP Top 10:2025 and Mobile Top 10:2024) and the 3 kinds of code
@@ -161,7 +168,8 @@ scripts/answer-key-sql.mjs    prints SQL that updates the online answer key
 scripts/test-progress.mjs     Progress and certificate rule tests
 scripts/build-three.mjs       builds assets/vendor/three.min.js from a three.js checkout
 scripts/update-sw.mjs         updates service-worker.js (version and file list); --check in npm test
-supabase/migrations/          the online scoreboard's database setup (already applied); 20261113090000 adds server-timed games
+supabase/migrations/          the online scoreboard's database setup (already applied); 20261113090000 adds server-timed games,
+                              20261113120000 the certificate exam (tables and functions only, no exam content)
 ```
 
 ## Adding a snippet
@@ -249,10 +257,10 @@ The shared board lives in the **LureLens** Supabase project (organization **Th3 
 How it stays honest:
 
 - Posting needs an account: email code or quick join. Accounts, usernames and profiles are LureLens's (`auth.users`, `public.profiles`, `save_profile`, `delete_my_account`), so one username works in both games. Deleting an account deletes its Spot the Bug scores too, and a player a LureLens moderator hides is hidden here as well.
-- The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_stb_start` / `arcade_stb_clock` / `arcade_stb_answer` (anyone, while playing), `arcade_stb_post` (signed in), `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
+- The browser can call only these Spot the Bug database functions: `arcade_team`, `arcade_leaderboard`, `arcade_stb_start` / `arcade_stb_clock` / `arcade_stb_answer` (anyone, while playing), `arcade_stb_post` (signed in), `arcade_history_push` / `arcade_history_pull` (your own games), `arcade_exam_status` / `arcade_exam_start` / `arcade_exam_round` / `arcade_exam_finish` (signed in), `arcade_register_certificate` / `arcade_my_certificate` (signed in), and `arcade_check_certificate` (anyone, by reference). The tables themselves can't be read or written through the API.
 - Classes: `arcade_create_class` (signed in, 20 a day), `arcade_class`, `arcade_class_board` and `arcade_class_debrief` (anyone with the code), `arcade_class_submit` (signed in, one game per player per class, must match the class's snippets in order, scored on the server like the public board), `arcade_my_classes`, `arcade_close_class` and `arcade_class_hide_result` (the teacher). Each new class result sends a live signal on `arcade:class:CODE`.
 - Moderation: `arcade_mod_scores`, `arcade_mod_list`, `arcade_mod_set_hidden` and `arcade_mod_history` check `public.is_moderator()` on every call; every hide and show is logged in `arcade.moderation_log`.
-- A certificate is issued only from posted games (server-scored, not hidden) with 80%+ at each level, one per account; its reference is random and renaming keeps the same reference.
+- A certificate is issued only from passed exams, one per level, one certificate per account; its reference is random and renaming keeps the same reference. Exam snippets (`arcade.stb_exam_snippets`) can't be read through the API: a round's code is sent only by `arcade_exam_round` once that round's clock starts, and answers are never sent. An exam with 3 or more clean rounds answered in under 2 seconds doesn't count.
 - A ranked game is recorded on the server as it's played (`arcade.stb_games`): the 10 snippets when it starts, then when each round is shown, paused, resumed and answered. Posting scores that record against the server's answer key (`arcade.stb_answer_key`) with the same rules as the game, so a total typed into the browser console is ignored.
 - Speed comes from the server's clock: a round can't claim more time left than the server allows (with 3 seconds' grace for slow mobile networks), and an answer that arrives more than 6 seconds after the clock ran out counts as no answer. 3 or more clean rounds answered in under 2 seconds by the server's clock means the game is posted hidden, logged in `arcade.moderation_log` and flagged `too-fast` for a moderator.
 - A game can be played before signing in and posted afterwards (the first account to post it claims it), for a day. Unposted games are deleted after 2 days. Starting games is limited to 30 per account every 10 minutes and 300 a minute overall.
@@ -266,7 +274,8 @@ How it stays honest:
 What the server can and can't check:
 
 - **Stopped:** typing a score, claiming time that wasn't taken, posting a game that wasn't played (or posting one twice), and scripts that answer faster than a person can read.
-- **Not stopped:** the answers are in this public repository (`data/snippets/*.json`, the answer key migrations) and in its history, so someone can look them up and play at a human speed. Hiding them on the website wouldn't help while the repository is public. The fixes are content-side: more snippets (so looking them up is slower than learning them), and, for the certificate, a pool of snippets kept in a private repository and loaded only into the database, never into this repo.
+- **Not stopped on the scoreboard:** the game's answers are in this public repository (`data/snippets/*.json`, the answer key migrations) and in its history, so someone can look them up and play at a human speed. Hiding them on the website wouldn't help while the repository is public. More snippets make that slower than learning them.
+- **The certificate is protected separately:** it comes from the exam, whose snippets live only in a private repository and the database. A candidate sees each exam snippet only during their own exam and never sees an answer. Someone could still copy exam code during an attempt and ask for help, so grow the pool over time (see the private repository's README) and retire snippets that leak.
 - Class games still post through `arcade_class_submit`, which trusts the browser's time left (only the class board is affected).
 
 ### Two settings to check in the Supabase dashboard
@@ -304,6 +313,10 @@ Moderators are shared with LureLens. In the SQL editor, with the player's userna
 ```sql
 insert into public.moderators (user_id) select id from public.profiles where lower(username) = lower('Their Username');
 ```
+
+### Update the certificate exam pool
+
+The exam content lives in the private repository `thespaceio/spot-the-bug-exam`, never here. Its README explains how to add snippets, validate them against this repository and load them (`node src/sql.mjs ../spot-the-bug > build/load.sql`, then run the SQL in the Supabase SQL editor). Keep at least 10 active snippets per level.
 
 ### Withdraw a certificate
 

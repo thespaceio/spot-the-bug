@@ -5,7 +5,7 @@ import { highlightLine, LANGUAGE_LABEL } from '../highlight.js';
 import { h, $, $$, fmt, pop, reduceMotion, icon, fill } from '../dom.js';
 import { ctx, isOpen, category } from '../context.js';
 import { newGameId, recentSnippetIds, prefs } from '../storage.js';
-import { rankedSession } from '../online.js';
+import { rankedSession, classSession } from '../online.js';
 
 const game = {
   level: null,
@@ -197,7 +197,7 @@ function beginClass(info) {
   game.classInfo = info;
   game.practice = null;
   game.flaws = null;
-  game.session = null;
+  game.session = classSession(info.code);
   game.untimed = false;
   game.rounds = rounds;
   reset();

@@ -8,6 +8,11 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.15.0
+
+- **Class games on the server's clock.** A class game is opened with `arcade_class_start`, recorded round by round like a ranked game, and posted with `arcade_class_submit_game`, which applies the same time caps as the scoreboard. The old `arcade_class_submit` is retired.
+- **Exam review for moderators.** Moderation has an **Exams** tab listing exams held for answering too fast; a moderator can accept one (logged with the reason), and it then counts as passed if the accuracy was 80% or more (`arcade_mod_exams`, `arcade_mod_exam_accept`, migration `20261113150000`).
+
 ## What's new in v0.14.0
 
 - **Why not your answer:** when you pick the wrong line, the answer screen says why that line is fine (`lineNotes` on each snippet, for the lines players most often pick); when you pick the wrong flaw type, it puts the two definitions side by side.
@@ -285,7 +290,7 @@ What the server can and can't check:
 - **Stopped:** typing a score, claiming time that wasn't taken, posting a game that wasn't played (or posting one twice), and scripts that answer faster than a person can read.
 - **Not stopped on the scoreboard:** the game's answers are in this public repository (`data/snippets/*.json`, the answer key migrations) and in its history, so someone can look them up and play at a human speed. Hiding them on the website wouldn't help while the repository is public. More snippets make that slower than learning them.
 - **The certificate is protected separately:** it comes from the exam, whose snippets live only in a private repository and the database. A candidate sees each exam snippet only during their own exam and never sees an answer. Someone could still copy exam code during an attempt and ask for help, so grow the pool over time (see the private repository's README) and retire snippets that leak.
-- Class games still post through `arcade_class_submit`, which trusts the browser's time left (only the class board is affected).
+- Class games are recorded and timed by the server like ranked games (since v0.15.0).
 
 ### Two settings to check in the Supabase dashboard
 

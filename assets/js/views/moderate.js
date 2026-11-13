@@ -6,11 +6,12 @@ import { LEVELS } from '../config.js';
 import { h, icon, pageHead, fill, fmt, dateLabel } from '../dom.js';
 import { ctx } from '../context.js';
 import { auth, isReady, onAuthChange } from '../auth.js';
-import { isModerator, modScores, modList, modSetHidden, modSetPlayerHidden, modHistory } from '../online.js';
+import { isModerator, modScores, modList, modSetHidden, modSetPlayerHidden, modHistory, modExams, modAcceptExam } from '../online.js';
 import { segmented } from './board.js';
 
-const state = { tab: 'scores', view: 'recent', search: '', reason: '' };
-const TABS = [{ id: 'scores', label: 'Games' }, { id: 'certificate', label: 'Certificates' }, { id: 'class', label: 'Classes' }, { id: 'log', label: 'Log' }];
+const state = { tab: 'scores', view: 'recent', examView: 'held', search: '', reason: '' };
+const TABS = [{ id: 'scores', label: 'Games' }, { id: 'exams', label: 'Exams' }, { id: 'certificate', label: 'Certificates' }, { id: 'class', label: 'Classes' }, { id: 'log', label: 'Log' }];
+const EXAM_VIEWS = [{ id: 'held', label: 'Held' }, { id: 'all', label: 'All finished' }];
 const VIEWS = [{ id: 'recent', label: 'Recent' }, { id: 'flagged', label: 'Flagged' }, { id: 'hidden', label: 'Hidden' }];
 const FLAG_TEXT = { 'near-max': 'Near the maximum score', burst: 'Many games in an hour', 'too-fast': 'Held automatically: 3 or more clean rounds answered in under 2 seconds' };
 
@@ -49,16 +50,19 @@ function tools(root, head) {
   search.addEventListener('input', () => { state.search = search.value; clearTimeout(timer); timer = setTimeout(load, 350); });
   const viewSeg = segmented('Show', VIEWS, state.view, (id) => { state.view = id; load(); });
   const viewWrap = h('div', { hidden: state.tab !== 'scores' }, viewSeg);
+  const examWrap = h('div', { hidden: state.tab !== 'exams' }, segmented('Show', EXAM_VIEWS, state.examView, (id) => { state.examView = id; load(); }));
 
   let seq = 0;
   async function load() {
     const mine = ++seq;
     viewWrap.hidden = state.tab !== 'scores';
+    examWrap.hidden = state.tab !== 'exams';
     fill(body, h('p', { class: 'muted', text: 'Loading…' }));
     try {
       let content;
       if (state.tab === 'scores') content = scoresTable(await modScores({ view: state.view, search: state.search }));
       else if (state.tab === 'log') content = logTable(await modHistory());
+      else if (state.tab === 'exams') content = examsTable(await modExams(state.examView));
       else content = itemsTable(state.tab, await modList(state.tab, state.search));
       if (mine === seq) fill(body, content);
     } catch (err) {
@@ -109,11 +113,25 @@ function tools(root, head) {
       h('td', { class: 'num' }, toggle(kind, r.id, r.hidden, kind === 'class' ? `Class ${r.id}` : `Certificate ${r.id}`)))));
   }
 
+  function examsTable(rows) {
+    const intro = h('p', { class: 'muted', text: 'Exams are held when 3 or more rounds were answered correctly in under 2 seconds, which usually means the answers were looked up. If you know the player did it themselves (you watched them, for example), accept it: it then counts as passed if they scored 80% or more. Write a reason above first.' });
+    if (!rows.length) return [intro, h('p', { class: 'empty', text: state.examView === 'held' ? 'No exams waiting for review.' : 'No finished exams yet.' })];
+    return [intro, table(['Player', 'Exam', 'Result', 'When', ''], rows.map((r) => h('tr', {},
+      h('td', {}, h('strong', { text: r.username || '–' })),
+      h('td', {}, `${LEVELS[r.level]?.label || r.level} · ${r.clean} of 10 · ${r.accuracy}%`),
+      h('td', {}, h('span', { class: `pill ${r.passed ? 'pill-win' : r.held ? 'pill-partial' : 'pill-miss'}`, text: r.passed ? (r.accepted ? 'passed (accepted)' : 'passed') : r.held ? 'held' : 'not passed' })),
+      h('td', { class: 'muted', text: dateLabel(r.finished_at) }),
+      h('td', { class: 'num' }, r.held ? h('button', {
+        type: 'button', class: 'btn btn-small btn-ghost',
+        onclick: () => act(() => modAcceptExam(r.id, state.reason), `${r.username}'s ${LEVELS[r.level]?.label || r.level} exam accepted.`),
+      }, 'Accept') : null))))];
+  }
+
   function logTable(rows) {
     if (!rows.length) return h('p', { class: 'empty', text: 'Nothing has been moderated yet.' });
     return table(['When', 'Action', 'Player', 'By', 'Reason'], rows.map((r) => h('tr', {},
       h('td', { class: 'muted', text: dateLabel(r.created_at) }),
-      h('td', { text: `${r.action === 'hide' ? 'Hid' : 'Showed'} ${r.kind}${r.target ? ` ${r.kind === 'score' ? r.target.slice(0, 8) : r.target}` : ''}` }),
+      h('td', { text: `${r.action === 'hide' ? 'Hid' : r.action === 'accept' ? 'Accepted' : 'Showed'} ${r.kind}${r.target ? ` ${r.kind === 'score' ? r.target.slice(0, 8) : r.target}` : ''}` }),
       h('td', { text: r.player || '–' }),
       h('td', { text: r.moderator || '–' }),
       h('td', { class: 'muted', text: r.reason || '' }))));
@@ -123,6 +141,7 @@ function tools(root, head) {
     h('section', { class: 'panel card mod-controls' },
       segmented('Section', TABS, state.tab, (id) => { state.tab = id; load(); }),
       viewWrap,
+      examWrap,
       h('div', { class: 'mod-fields' },
         h('div', { class: 'field' }, h('label', { for: 'mod-search', text: 'Search' }), search),
         h('div', { class: 'field' }, h('label', { for: 'mod-reason', text: 'Reason (saved in the log)' }), reason)),

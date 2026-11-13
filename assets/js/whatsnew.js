@@ -6,6 +6,14 @@ import { prefs } from './storage.js';
 
 export const RELEASES = [
   {
+    version: '0.15',
+    title: 'Fairer class boards',
+    items: [
+      'Class games are now timed by the server too, like the public scoreboard.',
+      'Moderators can review exam attempts that were held for answering too fast.',
+    ],
+  },
+  {
     version: '0.14',
     title: 'Learn from every answer',
     items: [

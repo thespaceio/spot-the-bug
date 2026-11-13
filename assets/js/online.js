@@ -62,9 +62,18 @@ export async function fetchBoard({ level = null, days = null, limit = ONLINE.boa
  * if one fails twice, the game stays on this device and can't be posted.
  */
 export function rankedSession(level, snippetIds) {
+  return gameSession('arcade_stb_start', { p_level: level, p_snippets: snippetIds });
+}
+
+/** A class game: the class's snippets in the class's order, on the server's clock. */
+export function classSession(code) {
+  return gameSession('arcade_class_start', { p_code: cleanClassCode(code) });
+}
+
+function gameSession(startFn, startArgs) {
   const session = { id: null, broken: !onlineEnabled(), error: null };
   let chain = session.broken ? Promise.resolve()
-    : rpc('arcade_stb_start', { p_level: level, p_snippets: snippetIds })
+    : rpc(startFn, startArgs)
       .then((id) => { session.id = id; })
       .catch((err) => { session.broken = true; session.error = err; });
   const step = (fn, args) => {
@@ -190,7 +199,16 @@ export const cleanClassCode = (code) => String(code || '').toUpperCase().replace
 
 export const createClass = ({ name, level, hours }) => rpc('arcade_create_class', { p_name: name, p_level: level, p_hours: hours });
 export const getClass = (code) => rpc('arcade_class', { p_code: cleanClassCode(code) });
-export const submitClassGame = (code, answers) => rpc('arcade_class_submit', { p_code: cleanClassCode(code), p_answers: answers });
+/** Posts a finished class game; the server scores it from its own record. */
+export async function submitClassGame(session) {
+  const id = session ? await session.settled() : null;
+  if (!id) {
+    throw new OnlineError(session?.error?.message && !/offline|reach|load/i.test(session.error.message)
+      ? session.error.message
+      : "This game wasn't connected to the class board while you played, so it can't be added.");
+  }
+  return rpc('arcade_class_submit_game', { p_game: id });
+}
 export const closeClass = (code, closed = true) => rpc('arcade_close_class', { p_code: code, p_closed: closed });
 export const hideClassResult = (code, name, hidden = true) => rpc('arcade_class_hide_result', { p_code: code, p_name: name, p_hidden: hidden });
 
@@ -229,6 +247,11 @@ export async function modList(kind, search = '') {
   const rows = await rpc('arcade_mod_list', { p_kind: kind, p_search: search || null, p_limit: 150 });
   return Array.isArray(rows) ? rows : [];
 }
+export async function modExams(view = 'held') {
+  const rows = await rpc('arcade_mod_exams', { p_view: view, p_limit: 100 });
+  return Array.isArray(rows) ? rows : [];
+}
+export const modAcceptExam = (id, reason) => rpc('arcade_mod_exam_accept', { p_exam: id, p_reason: reason || null });
 export const modSetHidden = (kind, id, hidden, reason) => rpc('arcade_mod_set_hidden', { p_kind: kind, p_id: id, p_hidden: hidden, p_reason: reason || null });
 export const modSetPlayerHidden = (playerId, hidden, reason) => rpc('moderate_player', { p_player: playerId, p_hidden: hidden, p_reason: reason || null });
 export async function modHistory() {

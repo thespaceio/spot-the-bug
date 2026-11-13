@@ -214,7 +214,7 @@ function classPostContents(r, rerender) {
     retry.hidden = Boolean(r.classFinal);
   } else if (!r.classPosting) {
     r.classPosting = true;
-    submitClassGame(cls.code, r.answers).then((res) => {
+    submitClassGame(r.session).then((res) => {
       r.posted = res;
       history.update(r.id, { posted: true });
       rerender();

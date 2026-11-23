@@ -8,6 +8,10 @@ Each round shows a short piece of code with one security flaw: backend code, a m
 
 Live at **https://thespaceio.github.io/spot-the-bug/**
 
+## What's new in v0.17.1
+
+- **Phone layout fixes.** On a phone, the flaw guide, the footer and the Practise buttons no longer run past the edge of the screen, which made the whole page zoom out. Long code lines in the guide now scroll inside their own box.
+
 ## What's new in v0.17.0
 
 - **Team admins** (`?teamadmin`). People at a client can see their own team's results and nobody else's: players, games and accuracy for 7, 30, 90 or 365 days, each level, each player, and every flaw type, weakest first. They can download it as CSV, print it or save it as a PDF, and make a new team link. Th3 SpaceIO adds them with `arcade.add_team_admin`; moderators can see every team. Account shows a "Team admin" panel to them.

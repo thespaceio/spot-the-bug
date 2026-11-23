@@ -399,7 +399,7 @@ button { font: inherit; color: inherit; }
 .nav-short { display: none; }
 .nav-label { max-width: 16ch; overflow: hidden; text-overflow: ellipsis; }
 .team-badge { order: 3; }
-.footer-links { display: flex; gap: 14px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 6px 14px; min-width: 0; max-width: 100%; }
 .footer-links a { color: var(--gray); text-decoration: none; }
 .footer-links a:hover { color: var(--white); text-decoration: underline; }
 
@@ -1172,28 +1172,35 @@ html.has-world .stage-copy::before {
 
 /* v0.14: the flaw guide */
 .guide-tools { margin: 4px 0 18px; }
-.guide-list { display: grid; gap: 16px; }
-.guide-card { padding: 20px; scroll-margin-top: 90px; }
+/* Every guide column is capped at the screen width (minmax(0, 1fr)), so a long
+   code line scrolls inside its own box instead of pushing the whole page wider. */
+.guide-list { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.guide-card { padding: 20px; scroll-margin-top: 90px; min-width: 0; }
 .guide-card.is-target { border-color: var(--green); }
 .guide-card:focus { outline: none; }
 .guide-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: flex-start; }
 .guide-head h2 { margin: 0 0 4px; font-size: 21px; }
 .guide-kinds { display: flex; gap: 6px; flex-wrap: wrap; }
 .guide-summary { color: var(--text); margin: 10px 0 14px; }
-.guide-cols { display: grid; gap: 16px; }
-@media (min-width: 760px) { .guide-cols { grid-template-columns: 1fr 1fr; } }
+.guide-cols { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.guide-cols > * { min-width: 0; }
+@media (min-width: 760px) { .guide-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .guide-cols h3 { font-size: 14px; margin: 0 0 6px; color: var(--white); }
 .guide-cols ul { margin: 0; padding-left: 18px; color: var(--text); display: grid; gap: 6px; font-size: 14.5px; }
-.guide-example { display: grid; gap: 10px; margin: 16px 0 12px; }
-@media (min-width: 760px) { .guide-example { grid-template-columns: 1fr 1fr; } }
+.guide-example { display: grid; gap: 10px; margin: 16px 0 12px; grid-template-columns: minmax(0, 1fr); }
+.guide-example > * { min-width: 0; }
+@media (min-width: 760px) { .guide-example { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .guide-ex-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gray); margin: 0 0 6px; }
-.guide-code { border: 1px solid var(--border); border-radius: 10px; background: var(--black); padding: 8px 12px; }
+.guide-code { border: 1px solid var(--border); border-radius: 10px; background: var(--black); padding: 8px 12px; max-width: 100%; min-width: 0; }
 .guide-code .line { min-height: 0; }
 .guide-code.is-bad { border-color: var(--red-line); }
 .guide-code.is-good { border-color: rgba(0, 204, 106, 0.45); }
 .guide-decoys { margin: 8px 0 12px; font-size: 14px; color: var(--text); }
 .guide-decoys summary { cursor: pointer; color: var(--white); font-weight: 600; }
 .guide-decoys ul { padding-left: 18px; display: grid; gap: 8px; margin-top: 10px; }
+/* Practise buttons wrap their label on a phone instead of running past the card. */
+.guide-card .btn-row { display: flex; flex-wrap: wrap; }
+.guide-card .btn { white-space: normal; max-width: 100%; text-align: left; }
 .focus-actions-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .focus-guide { font-size: 13px; }
 .weak-actions { margin-top: 8px; align-items: center; }
